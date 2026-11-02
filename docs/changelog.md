@@ -5,6 +5,7 @@ Uma linha por tarefa concluída: resumo, decisões, arquivos. Mais recente prime
 
 | data | tarefa | agente | resultado | notas |
 |---|---|---|---|---|
+| 2026-11-02 | Lista de cursos (admin) | orquestrador | DONE | Produto não achava como editar curso existente: título já era link mas não parecia. Coluna de ações com "Editar" e "Aulas" (→ `?tab=syllabus`) por curso; título em ciano com sublinhado no hover. E2E: passo "curso publicado continua editável pela lista". |
 | 2026-10-09 | Mascote animado | orquestrador | DONE | Pedido do produto (logo borrada): `logo-anim.webm` do site recortado e reencodado (4 MB→1 MB, 640x838, VP9+alpha, sem áudio) + poster 2x do quadro 0. `HeroMascot` toca o vídeo só onde há alpha em WebM (critério do site da marca); iPhone/Safari, modo leve, saveData e 2g ficam no poster. Pausa fora da tela. |
 | 2026-10-09 | Aprovações do produto | produto | DONE | Visual (componentes isométricos e telas) aprovado; Termos/Privacidade e `docs/legal-review.md` aprovados. Pendente do produto: AbacatePay produção, Secure password change, rate limit (agendados). |
 | 2026-10-09 | UX-002 | A03 (Sonnet 5.5) | DONE | axe-core em vitrines e públicas (390/1440): 0 critical; serious corrigidos (nome acessível do menu do usuário e do poster de vídeo); moderate corrigidos (landmark do player, ordem de headings, h1 em erros de rota, skip link no 404); foco no 1º campo inválido em CourseForm/MaterialForm. Contraste ok sem mudar tokens. `docs/a11y-review.md`. Pendente: leitor de tela real. Aprovado. |
