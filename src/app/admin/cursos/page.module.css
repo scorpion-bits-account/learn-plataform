@@ -18,6 +18,29 @@
 }
 .link {
   font-weight: 600;
+  color: var(--cyan);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 0.15s;
+}
+.link:hover,
+.link:focus-visible {
+  text-decoration-color: currentColor;
+}
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .slug {
   color: var(--text-dim);

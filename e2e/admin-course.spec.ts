@@ -83,6 +83,13 @@ test('admin cria curso, módulo, aula com texto, envia capa e publica; aparece n
       .toBe('published');
   });
 
+  await test.step('curso publicado continua editável pela lista (botão Editar)', async () => {
+    await visit(page, '/admin/cursos');
+    await page.getByRole('link', { name: `Editar curso ${title}` }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/cursos/${courseId}$`));
+    await expect(page.getByRole('button', { name: 'Salvar alterações' })).toBeVisible();
+  });
+
   await test.step('aparece no catálogo público', async () => {
     const course = await getCourseByTitle(title);
     // Visitante (sem a sessão do admin).

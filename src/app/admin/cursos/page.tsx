@@ -35,6 +35,32 @@ const COLUMNS: TableColumn<AdminCourseRow>[] = [
   { key: 'price', header: 'Preço', render: (c) => brl.format(c.priceCents / 100), align: 'end' },
   { key: 'lessons', header: 'Aulas', render: (c) => c.lessonCount, align: 'end' },
   { key: 'students', header: 'Alunos', render: (c) => c.studentCount, align: 'end' },
+  {
+    key: 'actions',
+    header: <span className={styles.srOnly}>Ações</span>,
+    label: 'Ações',
+    align: 'end',
+    render: (c) => (
+      <span className={styles.actions}>
+        <Button
+          href={`/admin/cursos/${c.id}`}
+          size="sm"
+          variant="secondary"
+          aria-label={`Editar curso ${c.title}`}
+        >
+          Editar
+        </Button>
+        <Button
+          href={`/admin/cursos/${c.id}?tab=syllabus`}
+          size="sm"
+          variant="ghost"
+          aria-label={`Ementa e aulas de ${c.title}`}
+        >
+          Aulas
+        </Button>
+      </span>
+    ),
+  },
 ];
 
 export default async function AdminCoursesPage() {
