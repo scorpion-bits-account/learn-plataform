@@ -8,10 +8,15 @@ import { formatBrPhone, formatCpf } from '@/lib/payments/tax-id';
 import { startCheckout } from '../actions';
 import { CHECKOUT_IDLE } from '../model';
 import type { CheckoutFormState } from '../model';
+import type { PaymentMethod } from '../schemas';
 import styles from './Checkout.module.css';
 
 export interface CheckoutFormProps {
   courseSlug: string;
+  /** Máximo de parcelas no cartão para o preço do curso (exibição; quem decide é o servidor). */
+  cardInstallments?: number;
+  /** Método inicialmente marcado (padrão PIX). */
+  defaultMethod?: PaymentMethod;
   defaultTaxId?: string;
   defaultPhone?: string;
   /** Só para a vitrine `/dev/checkout` (mostrar estados de erro sem chamar a action). */
@@ -27,11 +32,15 @@ async function submit(_prev: CheckoutFormState, formData: FormData): Promise<Che
 }
 
 /**
- * CPF + celular -> "Gerar PIX". Máscara leve (só formata; quem valida é o
- * servidor). Preço e comprador nunca saem daqui: o form só envia slug, CPF e telefone.
+ * PIX (CPF + celular -> "Gerar PIX") ou cartão ("Pagar com cartão" -> checkout
+ * seguro da AbacatePay). Máscara leve (só formata; quem valida é o servidor).
+ * Preço e comprador nunca saem daqui: o form só envia slug, método, CPF e telefone.
+ * Dados de cartão NUNCA são digitados aqui (ADR-022).
  */
 export function CheckoutForm({
   courseSlug,
+  cardInstallments = 1,
+  defaultMethod = 'pix',
   defaultTaxId = '',
   defaultPhone = '',
   initialState = CHECKOUT_IDLE,
@@ -39,6 +48,8 @@ export function CheckoutForm({
   const [state, action, pending] = useActionState(submit, initialState);
   const [taxId, setTaxId] = useState(() => formatCpf(defaultTaxId));
   const [phone, setPhone] = useState(() => formatBrPhone(defaultPhone));
+  const [method, setMethod] = useState<PaymentMethod>(defaultMethod);
+  const isCard = method === 'card';
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
 
@@ -76,43 +87,87 @@ export function CheckoutForm({
         </div>
       ) : null}
 
-      <Field
-        label="CPF"
-        required
-        hint="Usado só para emitir a cobrança PIX."
-        error={errors?.taxId?.[0]}
-      >
-        <Input
-          name="taxId"
-          value={taxId}
-          onChange={(e) => setTaxId(formatCpf(e.target.value))}
-          inputMode="numeric"
-          autoComplete="off"
-          enterKeyHint="next"
-          placeholder="000.000.000-00"
-          spellCheck={false}
-        />
-      </Field>
+      <fieldset className={styles.methods}>
+        <legend className={styles.methodsLegend}>Forma de pagamento</legend>
+        <label className={styles.methodOption}>
+          <input
+            type="radio"
+            name="paymentMethod"
+            value="pix"
+            checked={!isCard}
+            onChange={() => setMethod('pix')}
+          />
+          <span className={styles.methodName}>PIX</span>
+          <span className={styles.methodHint}>À vista, com aprovação na hora.</span>
+        </label>
+        <label className={styles.methodOption}>
+          <input
+            type="radio"
+            name="paymentMethod"
+            value="card"
+            checked={isCard}
+            onChange={() => setMethod('card')}
+          />
+          <span className={styles.methodName}>Cartão de crédito</span>
+          <span className={styles.methodHint}>
+            {cardInstallments > 1 ? `À vista ou em até ${cardInstallments}x. ` : ''}
+            Você digita o cartão na página segura da AbacatePay.
+          </span>
+        </label>
+      </fieldset>
 
-      <Field label="Celular" required hint="Com DDD." error={errors?.phone?.[0]}>
-        <Input
-          name="phone"
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(formatBrPhone(e.target.value))}
-          inputMode="numeric"
-          autoComplete="tel-national"
-          enterKeyHint="go"
-          placeholder="(11) 90000-0000"
-        />
-      </Field>
+      {isCard ? (
+        <p className={styles.policy}>
+          Ao continuar, você vai para a página de pagamento da AbacatePay. Não recebemos nem
+          guardamos os dados do seu cartão. Depois do pagamento, você volta para cá.
+        </p>
+      ) : (
+        <>
+          <Field
+            label="CPF"
+            required
+            hint="Usado só para emitir a cobrança PIX."
+            error={errors?.taxId?.[0]}
+          >
+            <Input
+              name="taxId"
+              value={taxId}
+              onChange={(e) => setTaxId(formatCpf(e.target.value))}
+              inputMode="numeric"
+              autoComplete="off"
+              enterKeyHint="next"
+              placeholder="000.000.000-00"
+              spellCheck={false}
+            />
+          </Field>
+
+          <Field label="Celular" required hint="Com DDD." error={errors?.phone?.[0]}>
+            <Input
+              name="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(formatBrPhone(e.target.value))}
+              inputMode="numeric"
+              autoComplete="tel-national"
+              enterKeyHint="go"
+              placeholder="(11) 90000-0000"
+            />
+          </Field>
+        </>
+      )}
 
       <p className={styles.policy}>
         Ao comprar, você concorda com os <TextLink href="/termos">Termos de uso</TextLink>.
       </p>
 
       <Button type="submit" size="lg" fullWidth pending={pending}>
-        {pending ? 'Gerando PIX…' : 'Gerar PIX'}
+        {isCard
+          ? pending
+            ? 'Abrindo pagamento…'
+            : 'Pagar com cartão'
+          : pending
+            ? 'Gerando PIX…'
+            : 'Gerar PIX'}
       </Button>
       <p className={styles.fine}>
         O acesso é liberado automaticamente quando o pagamento for confirmado.

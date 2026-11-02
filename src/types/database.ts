@@ -366,6 +366,7 @@ export type Database = {
       orders: {
         Row: {
           amount_cents: number
+          checkout_url: string | null
           course_id: string
           created_at: string
           created_by: string | null
@@ -373,6 +374,7 @@ export type Database = {
           expires_at: string | null
           id: string
           paid_at: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
           pix_br_code: string | null
           pix_br_code_base64: string | null
           provider: string
@@ -387,6 +389,7 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          checkout_url?: string | null
           course_id: string
           created_at?: string
           created_by?: string | null
@@ -394,6 +397,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pix_br_code?: string | null
           pix_br_code_base64?: string | null
           provider?: string
@@ -408,6 +412,7 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          checkout_url?: string | null
           course_id?: string
           created_at?: string
           created_by?: string | null
@@ -415,6 +420,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pix_br_code?: string | null
           pix_br_code_base64?: string | null
           provider?: string
@@ -793,6 +799,7 @@ export type Database = {
       material_type: "video" | "text" | "file" | "link"
       order_source: "checkout" | "manual"
       order_status: "pending" | "paid" | "failed" | "expired" | "refunded" | "canceled"
+      payment_method: "pix" | "card"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -925,6 +932,7 @@ export const Constants = {
       material_type: ["video", "text", "file", "link"],
       order_source: ["checkout", "manual"],
       order_status: ["pending", "paid", "failed", "expired", "refunded", "canceled"],
+      payment_method: ["pix", "card"],
     },
   },
 } as const

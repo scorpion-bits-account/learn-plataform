@@ -6,7 +6,14 @@ vi.mock('@/lib/env/server', () => ({
   getPaymentsEnv: () => ({ ABACATEPAY_API_KEY: 'abc_dev_e2e', ABACATEPAY_WEBHOOK_SECRET: 's' }),
 }));
 
-import { createPixCharge, getPixStatus, refundPixCharge } from '@/lib/payments/abacatepay';
+import {
+  createCardCheckout,
+  createPixCharge,
+  getCardCheckoutStatus,
+  getPixStatus,
+  refundCardCheckout,
+  refundPixCharge,
+} from '@/lib/payments/abacatepay';
 
 import { createAbacatePayMock } from './abacatepay';
 
@@ -139,5 +146,53 @@ describe('cliente real do app contra o mock', () => {
     expect((await getPixStatus(charge.billingId)).status).toBe('PAID');
     expect(await refundPixCharge(charge.billingId)).toEqual({ alreadyRefunded: false });
     expect(await refundPixCharge(charge.billingId)).toEqual({ alreadyRefunded: true });
+  });
+});
+
+describe('mock — checkout hospedado de cartão (PAY-007)', () => {
+  const ORDER = '11111111-1111-4111-8111-111111111111';
+  const input = {
+    orderId: ORDER,
+    courseId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    amountCents: 4990,
+    productName: 'Curso',
+    maxInstallments: 4,
+    returnUrl: `http://127.0.0.1:3000/checkout/pedido/${ORDER}`,
+  };
+
+  it('cliente real do app: produto espelho → checkout → pagar na página → PAID → reembolso', async () => {
+    const created = await createCardCheckout(input);
+    expect(created.url).toBe(`${baseUrl.replace('/v2', '')}/pay/${created.billingId}`);
+    expect(mock.products()).toHaveLength(1);
+
+    // Segundo checkout do mesmo curso/preço reaproveita o produto.
+    await createCardCheckout({ ...input, orderId: '22222222-2222-4222-8222-222222222222' });
+    expect(mock.products()).toHaveLength(1);
+
+    expect((await getCardCheckoutStatus(created.billingId)).status).toBe('PENDING');
+
+    const page = await fetch(created.url);
+    expect(await page.text()).toContain('Pagar com cartão de teste');
+    const paid = await fetch(created.url, { method: 'POST', redirect: 'manual' });
+    expect(paid.status).toBe(303);
+    expect(paid.headers.get('location')).toBe(input.returnUrl);
+
+    expect(await getCardCheckoutStatus(created.billingId)).toMatchObject({
+      status: 'PAID',
+      amountCents: 4990,
+      paidAmountCents: 4990,
+      externalId: ORDER,
+    });
+    expect(await refundCardCheckout(created.billingId)).toEqual({ alreadyRefunded: false });
+    expect(await refundCardCheckout(created.billingId)).toEqual({ alreadyRefunded: true });
+    expect((await getCardCheckoutStatus(created.billingId)).status).toBe('REFUNDED');
+  });
+
+  it('recusa parcela abaixo de R$ 10 e rotas de API sem chave', async () => {
+    await expect(createCardCheckout({ ...input, maxInstallments: 12 })).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
+    const res = await fetch(`${baseUrl}/checkouts/get?id=bill_x`);
+    expect(res.status).toBe(401);
   });
 });

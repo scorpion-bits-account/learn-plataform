@@ -21,6 +21,8 @@ const base: MyOrder = {
   hasPix: true,
   pixBrCode: '000201BRCODE',
   pixQrSrc: 'data:image/png;base64,iVBORw0KG==',
+  paymentMethod: 'pix',
+  checkoutUrl: null,
   course: { slug: 'godot-do-zero', title: 'Godot do zero' },
 };
 
@@ -83,5 +85,37 @@ describe('OrderStatusView', () => {
     await act(() => vi.advanceTimersByTimeAsync(3000));
     expect(refresh).toHaveBeenCalled();
     expect(screen.getByText('Pagamento confirmado!')).toBeInTheDocument();
+  });
+
+  describe('cartão (checkout hospedado)', () => {
+    const card: MyOrder = {
+      ...base,
+      hasPix: false,
+      pixBrCode: null,
+      pixQrSrc: null,
+      paymentMethod: 'card',
+      checkoutUrl: 'https://app.abacatepay.com/pay/bill_abc',
+      // Janela de reaproveitamento vencida não vira "PIX expirado" no cartão.
+      expiresAt: '2026-01-01T00:00:00Z',
+    };
+
+    it('pending: sem QR nem contagem; link para o checkout e "Verificar agora"', () => {
+      wrap(card);
+      expect(screen.getByText('Aguardando a confirmação do cartão')).toBeInTheDocument();
+      expect(screen.getByText('Cartão de crédito')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Ir para o pagamento com cartão' })).toHaveAttribute(
+        'href',
+        'https://app.abacatepay.com/pay/bill_abc',
+      );
+      expect(screen.getByRole('button', { name: 'Verificar agora' })).toBeInTheDocument();
+      expect(screen.queryByLabelText('Pix Copia e Cola')).not.toBeInTheDocument();
+      expect(screen.queryByText('Este PIX expirou')).not.toBeInTheDocument();
+    });
+
+    it('expired: texto de cartão, sem falar em PIX', () => {
+      wrap({ ...card, status: 'expired', checkoutUrl: null });
+      expect(screen.getByText('Este pagamento não foi concluído')).toBeInTheDocument();
+      expect(screen.queryByText('Este PIX expirou')).not.toBeInTheDocument();
+    });
   });
 });

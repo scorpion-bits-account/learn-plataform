@@ -4,12 +4,17 @@ import { z } from 'zod';
 
 import { getPaymentsEnv } from '@/lib/env/server';
 
-import { DEFAULT_ABACATEPAY_API_BASE_URL, resolveAbacatePayBaseUrl } from './api-base-url';
+import {
+  DEFAULT_ABACATEPAY_API_BASE_URL,
+  isAbacatePayCheckoutUrl,
+  resolveAbacatePayBaseUrl,
+} from './api-base-url';
 import { formatBrPhone, formatCpf } from './tax-id';
 
 /**
  * Cliente mínimo da AbacatePay API v2 — Checkout Transparente PIX
- * (docs/payments.md §2–§3, ADR-016/ADR-018). Interface pequena de propósito:
+ * (docs/payments.md §2–§3, ADR-016/ADR-018) e cartão pelo checkout hospedado
+ * (docs/payments.md §10, ADR-022). Interface pequena de propósito:
  * sem abstração multi-provedor.
  *
  * - `fetch` com timeout (AbortController, 10 s) e `cache: 'no-store'`.
@@ -52,7 +57,9 @@ export type PaymentProviderErrorCode =
   /** Reembolso: a transação não pode ser reembolsada agora. */
   | 'not_refundable'
   /** Reembolso: a cobrança já foi reembolsada (a API é idempotente). */
-  | 'already_refunded';
+  | 'already_refunded'
+  /** Recurso inexistente (ex.: produto espelho ainda não criado). */
+  | 'not_found';
 
 export class PaymentProviderError extends Error {
   readonly code: PaymentProviderErrorCode;
@@ -90,6 +97,12 @@ const KNOWN_STATUSES = new Set<PixStatus>([
   'APPROVED',
   'FAILED',
 ]);
+
+/**
+ * Status do checkout hospedado (`GET /checkouts/get`): `PENDING | EXPIRED | CANCELLED |
+ * PAID | REFUNDED | REDEEMED` — subconjunto do enum acima (mesmo tratamento: só `PAID` libera).
+ */
+export type CheckoutStatus = PixStatus;
 
 function toPixStatus(value: string): PixStatus {
   const upper = value.toUpperCase() as PixStatus;
@@ -142,6 +155,44 @@ export interface PixRefundResult {
   alreadyRefunded: boolean;
 }
 
+export interface CreateCardCheckoutInput {
+  /** `orders.id` — vai como `externalId` e em `metadata.orderId`. */
+  orderId: string;
+  courseId: string;
+  /** Sempre `orders.amount_cents` (lido do banco). */
+  amountCents: number;
+  /** Nome do produto espelho (título do curso). */
+  productName: string;
+  /** Máximo de parcelas oferecido (1–12; parcela mínima R$ 10,00 já aplicada por quem chama). */
+  maxInstallments: number;
+  /** Volta do checkout ("Voltar" e após o pagamento): `/checkout/pedido/<orderId>` absoluto. */
+  returnUrl: string;
+}
+
+export interface CardCheckout {
+  /** `provider_billing_id` (`bill_…`). */
+  billingId: string;
+  /** URL do checkout hospedado, já validada (`https://app.abacatepay.com/pay/…`). */
+  url: string;
+  status: CheckoutStatus;
+}
+
+export interface CardCheckoutStatusResult {
+  billingId: string;
+  status: CheckoutStatus;
+  /** Total do checkout em centavos (`amount`), se informado. */
+  amountCents: number | null;
+  /** Valor pago em centavos (`paidAmount`), se informado. */
+  paidAmountCents: number | null;
+  /** `externalId` (= `orders.id`), se informado. */
+  externalId: string | null;
+}
+
+/** Id do produto espelho de (curso, preço). Preço novo → produto novo (sem rota de update). */
+export function cardProductExternalId(courseId: string, amountCents: number): string {
+  return `course-${courseId}-${amountCents}`;
+}
+
 // ---------------------------------------------------------------------------
 // Schemas de resposta (só o que usamos; campos extras são ignorados)
 // ---------------------------------------------------------------------------
@@ -180,6 +231,29 @@ const checkDataSchema = z.object({
   status: z.string(),
   expiresAt: isoDate,
   amount: z.number().int().positive().optional(),
+});
+
+const productDataSchema = z.object({
+  id: billingIdSchema,
+  price: z.number().int().positive(),
+  externalId: z.string().nullish(),
+});
+
+const checkoutCreateDataSchema = z.object({
+  id: billingIdSchema,
+  url: z.string().trim().min(1).max(2048),
+  amount: z.number().int().positive(),
+  status: z.string(),
+  externalId: z.string().nullish(),
+});
+
+const checkoutGetDataSchema = z.object({
+  // Se vier, tem que ser o checkout pedido.
+  id: billingIdSchema.optional(),
+  status: z.string(),
+  amount: z.number().int().nonnegative().nullish(),
+  paidAmount: z.number().int().nonnegative().nullish(),
+  externalId: z.string().nullish(),
 });
 
 const envelopeSchema = z.object({
@@ -235,6 +309,11 @@ function errorForStatus(status: number): PaymentProviderError {
 
 /** Traduz a recusa do provedor (status + corpo JSON, se houver) em erro tipado. */
 type ClassifyFailure = (status: number, body: unknown) => PaymentProviderError | undefined;
+
+/** Base efetiva da API (real ou mock E2E), validada como em `request`. */
+function currentBaseUrl(): string {
+  return baseUrl(apiKey());
+}
 
 async function request(
   path: string,
@@ -443,12 +522,16 @@ export async function refundPixCharge(
   billingId: string,
   reason = 'Reembolso (CDC art. 49)',
 ): Promise<PixRefundResult> {
+  return refund('/transparents/refund', billingId, reason);
+}
+
+async function refund(path: string, billingId: string, reason: string): Promise<PixRefundResult> {
   if (!billingIdSchema.safeParse(billingId).success) {
     throw new PaymentProviderError('invalid_request', 'Id de cobrança inválido.');
   }
   try {
     await request(
-      '/transparents/refund',
+      path,
       { method: 'POST', body: { id: billingId, reason: reason.slice(0, 140) } },
       classifyRefundFailure,
     );
@@ -459,4 +542,165 @@ export async function refundPixCharge(
     }
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Cartão: checkout hospedado (docs/payments.md §10, ADR-022)
+// ---------------------------------------------------------------------------
+
+const classifyNotFound: ClassifyFailure = (status, body) => {
+  const text = failureText(body);
+  if (status === 404 || text.includes('NÃO ENCONTRADO') || text.includes('NOT FOUND')) {
+    return new PaymentProviderError('not_found', 'Recurso não encontrado na AbacatePay.', status);
+  }
+  return undefined;
+};
+
+function parseProduct(data: unknown, amountCents: number): string {
+  const parsed = productDataSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new PaymentProviderError('provider_unavailable', 'Produto da AbacatePay inesperado.');
+  }
+  if (parsed.data.price !== amountCents) {
+    // Produto editado no painel: o checkout sairia com outro valor.
+    throw new PaymentProviderError('invalid_request', 'Preço do produto diverge do pedido.');
+  }
+  return parsed.data.id;
+}
+
+async function findCardProduct(externalId: string, amountCents: number): Promise<string | null> {
+  try {
+    const data = await request(
+      `/products/get?externalId=${encodeURIComponent(externalId)}`,
+      { method: 'GET' },
+      classifyNotFound,
+    );
+    if (data == null) return null;
+    return parseProduct(data, amountCents);
+  } catch (error) {
+    if (error instanceof PaymentProviderError && error.code === 'not_found') return null;
+    throw error;
+  }
+}
+
+/**
+ * Produto avulso espelho de (curso, preço) — o checkout hospedado só cobra produtos.
+ * `products/get?externalId=` → 404 → `products/create`. Corrida (dois checkouts ao mesmo
+ * tempo): se o `create` falhar, busca de novo. Permissões `PRODUCT:READ`/`PRODUCT:CREATE`.
+ */
+async function ensureCardProduct(input: CreateCardCheckoutInput): Promise<string> {
+  const externalId = cardProductExternalId(input.courseId, input.amountCents);
+  const existing = await findCardProduct(externalId, input.amountCents);
+  if (existing) return existing;
+  try {
+    const data = await request('/products/create', {
+      method: 'POST',
+      body: {
+        externalId,
+        name: input.productName.slice(0, 100) || 'Curso',
+        price: input.amountCents,
+        currency: 'BRL',
+      },
+    });
+    return parseProduct(data, input.amountCents);
+  } catch (error) {
+    if (error instanceof PaymentProviderError && error.code === 'invalid_request') {
+      const raced = await findCardProduct(externalId, input.amountCents);
+      if (raced) return raced;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Cria o checkout hospedado só com cartão (`POST /v2/checkouts/create`, `CHECKOUT:CREATE`).
+ * O valor vem do produto espelho e é CONFERIDO com o pedido; a `url` precisa ser da
+ * AbacatePay (ou do mock E2E). Lança `PaymentProviderError`.
+ */
+export async function createCardCheckout(input: CreateCardCheckoutInput): Promise<CardCheckout> {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new PaymentProviderError('invalid_request', 'Valor inválido.');
+  }
+  if (
+    !Number.isInteger(input.maxInstallments) ||
+    input.maxInstallments < 1 ||
+    input.maxInstallments > 12
+  ) {
+    throw new PaymentProviderError('invalid_request', 'Parcelamento inválido.');
+  }
+
+  const productId = await ensureCardProduct(input);
+  const data = await request('/checkouts/create', {
+    method: 'POST',
+    body: {
+      items: [{ id: productId, quantity: 1 }],
+      methods: ['CARD'],
+      externalId: input.orderId,
+      returnUrl: input.returnUrl,
+      completionUrl: input.returnUrl,
+      card: { maxInstallments: input.maxInstallments },
+      metadata: { orderId: input.orderId, courseId: input.courseId },
+    },
+  });
+
+  const parsed = checkoutCreateDataSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new PaymentProviderError(
+      'provider_unavailable',
+      'Checkout da AbacatePay sem os campos esperados.',
+    );
+  }
+  if (parsed.data.amount !== input.amountCents) {
+    throw new PaymentProviderError('provider_unavailable', 'Valor do checkout diverge do pedido.');
+  }
+  if (parsed.data.externalId != null && parsed.data.externalId !== input.orderId) {
+    throw new PaymentProviderError('provider_unavailable', 'Checkout devolvido para outro pedido.');
+  }
+  if (!isAbacatePayCheckoutUrl(parsed.data.url, currentBaseUrl())) {
+    throw new PaymentProviderError('provider_unavailable', 'URL do checkout fora da AbacatePay.');
+  }
+  return {
+    billingId: parsed.data.id,
+    url: parsed.data.url,
+    status: toPixStatus(parsed.data.status),
+  };
+}
+
+/** Reconsulta do checkout (`GET /v2/checkouts/get?id=`, `CHECKOUT:READ`). Lança `PaymentProviderError`. */
+export async function getCardCheckoutStatus(billingId: string): Promise<CardCheckoutStatusResult> {
+  if (!billingIdSchema.safeParse(billingId).success) {
+    throw new PaymentProviderError('invalid_request', 'Id de cobrança inválido.');
+  }
+  const data = await request(`/checkouts/get?id=${encodeURIComponent(billingId)}`, {
+    method: 'GET',
+  });
+  const parsed = checkoutGetDataSchema.safeParse(data);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => issue.path.join('.') || '(raiz)').join(', ');
+    throw new PaymentProviderError(
+      'provider_unavailable',
+      `Checkout da AbacatePay sem os campos esperados (${fields}).`,
+    );
+  }
+  if (parsed.data.id !== undefined && parsed.data.id !== billingId) {
+    throw new PaymentProviderError('provider_unavailable', 'Status devolvido para outro checkout.');
+  }
+  return {
+    billingId,
+    status: toPixStatus(parsed.data.status),
+    amountCents: parsed.data.amount ?? null,
+    paidAmountCents: parsed.data.paidAmount ?? null,
+    externalId: parsed.data.externalId ?? null,
+  };
+}
+
+/**
+ * Reembolso total do checkout de cartão (`POST /v2/checkouts/refund`, `REFUND:CREATE`).
+ * Mesmo contrato de `refundPixCharge`: não muda o pedido (isso é do webhook `checkout.refunded`).
+ */
+export async function refundCardCheckout(
+  billingId: string,
+  reason = 'Reembolso (CDC art. 49)',
+): Promise<PixRefundResult> {
+  return refund('/checkouts/refund', billingId, reason);
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
@@ -13,6 +14,7 @@ import {
   formatCountdown,
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TONE,
+  PAYMENT_METHOD_LABEL,
 } from '../model';
 import type { MyOrder, OrderStatusSnapshot } from '../model';
 import styles from './Checkout.module.css';
@@ -48,8 +50,10 @@ export function OrderStatusView({
   fetchStatus = defaultFetchStatus,
 }: OrderStatusViewProps) {
   const router = useRouter();
-  // Vencido localmente: o polling para (PIX vencido não pode mais ser pago).
-  const remaining = useRemainingMs(order.expiresAt, order.status === 'pending');
+  const isCard = order.paymentMethod === 'card';
+  // Vencido localmente: o polling para (PIX vencido não pode mais ser pago). No cartão,
+  // `expires_at` é só a janela de reaproveitamento do checkout: sem contagem regressiva.
+  const remaining = useRemainingMs(isCard ? null : order.expiresAt, order.status === 'pending');
   const { snapshot, checking, timedOut, checkNow } = useOrderPolling({
     initial: { status: order.status, expiresAt: order.expiresAt },
     fetchStatus: () => fetchStatus(order.id),
@@ -62,13 +66,15 @@ export function OrderStatusView({
   const retryHref = slug ? `/checkout/${slug}` : '/catalogo';
   const qrExpired = status === 'pending' && remaining === 0;
 
-  const view: 'pending' | 'generating' | 'expired' | 'paid' | 'failed' | 'refunded' =
+  const view: 'pending' | 'card' | 'generating' | 'expired' | 'paid' | 'failed' | 'refunded' =
     status === 'pending'
-      ? qrExpired
-        ? 'expired'
-        : order.pixBrCode
-          ? 'pending'
-          : 'generating'
+      ? isCard
+        ? 'card'
+        : qrExpired
+          ? 'expired'
+          : order.pixBrCode
+            ? 'pending'
+            : 'generating'
       : status === 'expired'
         ? 'expired'
         : status === 'paid'
@@ -97,6 +103,10 @@ export function OrderStatusView({
             <dt>Valor</dt>
             <dd>{formatPrice(order.amountCents)}</dd>
           </div>
+          <div className={styles.fact}>
+            <dt>Forma de pagamento</dt>
+            <dd>{PAYMENT_METHOD_LABEL[order.paymentMethod]}</dd>
+          </div>
         </dl>
 
         {view === 'pending' ? (
@@ -107,6 +117,33 @@ export function OrderStatusView({
             timedOut={timedOut}
             onCheck={checkNow}
           />
+        ) : null}
+
+        {view === 'card' ? (
+          <div className={styles.stateBox}>
+            <p className={styles.stateTitle}>Aguardando a confirmação do cartão</p>
+            <p className={styles.policy} role="status" aria-live="polite">
+              {timedOut
+                ? 'Paramos de verificar automaticamente. Se já pagou, toque em "Verificar agora".'
+                : 'Se você já pagou na página da AbacatePay, a confirmação costuma levar alguns segundos. Esta página atualiza sozinha.'}
+            </p>
+            {order.checkoutUrl ? (
+              <Button href={order.checkoutUrl} fullWidth>
+                Ir para o pagamento com cartão
+              </Button>
+            ) : null}
+            <Button
+              variant="secondary"
+              fullWidth
+              pending={checking}
+              onClick={() => void checkNow()}
+            >
+              Verificar agora
+            </Button>
+            <p className={styles.fine}>
+              Prefere PIX? <Link href={retryHref}>Escolha outra forma de pagamento</Link>.
+            </p>
+          </div>
         ) : null}
 
         {view === 'generating' ? (
@@ -130,14 +167,29 @@ export function OrderStatusView({
 
         {view === 'expired' ? (
           <div role="status" className={styles.stateBox}>
-            <p className={styles.stateTitle}>Este PIX expirou</p>
-            <p className={styles.policy}>
-              O código não vale mais, então não pague por ele. Nenhum valor foi cobrado. Gere um
-              novo PIX para continuar.
-            </p>
-            <Button href={retryHref} fullWidth>
-              Gerar novo PIX
-            </Button>
+            {isCard ? (
+              <>
+                <p className={styles.stateTitle}>Este pagamento não foi concluído</p>
+                <p className={styles.policy}>
+                  Não recebemos a confirmação do cartão para este pedido. Para comprar, inicie um
+                  novo pagamento.
+                </p>
+                <Button href={retryHref} fullWidth>
+                  Tentar de novo
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className={styles.stateTitle}>Este PIX expirou</p>
+                <p className={styles.policy}>
+                  O código não vale mais, então não pague por ele. Nenhum valor foi cobrado. Gere um
+                  novo PIX para continuar.
+                </p>
+                <Button href={retryHref} fullWidth>
+                  Gerar novo PIX
+                </Button>
+              </>
+            )}
           </div>
         ) : null}
 

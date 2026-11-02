@@ -5,7 +5,8 @@ import { Button, EmptyState } from '@/components/ui';
 import type { CourseView } from '@/features/catalog/components/types';
 import { formatPrice } from '@/features/catalog/model';
 
-import type { CheckoutFormState, CheckoutPrefill } from '../model';
+import type { CheckoutFormState, CheckoutPrefill, OrderPaymentMethod } from '../model';
+import { cardMaxInstallments } from '../schemas';
 import styles from './Checkout.module.css';
 import { CheckoutForm } from './CheckoutForm';
 
@@ -14,6 +15,8 @@ export interface CheckoutViewProps {
   hasAccess: boolean;
   prefill: CheckoutPrefill;
   pendingOrderId: string | null;
+  /** Método do pedido pendente (padrão PIX). */
+  pendingMethod?: OrderPaymentMethod | null;
   /** Só para a vitrine `/dev/checkout`. */
   initialState?: CheckoutFormState;
 }
@@ -30,12 +33,13 @@ function Crumbs({ course }: { course: CourseView }) {
   );
 }
 
-/** `/checkout/[slug]`: resumo do curso + CPF/celular + "Gerar PIX". */
+/** `/checkout/[slug]`: resumo do curso + forma de pagamento (PIX ou cartão). */
 export function CheckoutView({
   course,
   hasAccess,
   prefill,
   pendingOrderId,
+  pendingMethod = 'pix',
   initialState,
 }: CheckoutViewProps) {
   if (hasAccess || course.priceCents <= 0) {
@@ -89,24 +93,29 @@ export function CheckoutView({
               <span className={styles.totalLabel}>Total</span>
               <span className={styles.price}>{formatPrice(course.priceCents)}</span>
             </p>
-            <p className={styles.method}>Pagamento único via PIX.</p>
+            <p className={styles.method}>Pagamento único via PIX ou cartão de crédito.</p>
           </div>
         </ChamferCard>
 
         <ChamferCard as="section" aria-labelledby="dados-titulo">
           <h2 id="dados-titulo" className={styles.formTitle}>
-            Dados para o PIX
+            Pagamento
           </h2>
           {pendingOrderId ? (
             <div className={styles.notice} role="status">
-              <p>Você já gerou um PIX para este curso e ele ainda está válido.</p>
+              <p>
+                {pendingMethod === 'card'
+                  ? 'Você já iniciou um pagamento com cartão para este curso.'
+                  : 'Você já gerou um PIX para este curso e ele ainda está válido.'}
+              </p>
               <Button href={`/checkout/pedido/${pendingOrderId}`} variant="secondary" fullWidth>
-                Ver PIX gerado
+                {pendingMethod === 'card' ? 'Ver pagamento iniciado' : 'Ver PIX gerado'}
               </Button>
             </div>
           ) : null}
           <CheckoutForm
             courseSlug={course.slug}
+            cardInstallments={cardMaxInstallments(course.priceCents)}
             defaultTaxId={prefill.taxId}
             defaultPhone={prefill.phone}
             initialState={initialState}

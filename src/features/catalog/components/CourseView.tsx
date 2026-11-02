@@ -167,7 +167,9 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
               {cta.label}
             </Button>
             {cta.kind === 'buy' && (
-              <p className={styles.note}>Pagamento por PIX. Acesso liberado após a confirmação.</p>
+              <p className={styles.note}>
+                Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
+              </p>
             )}
           </ChamferCard>
         </aside>

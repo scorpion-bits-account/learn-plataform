@@ -231,6 +231,7 @@ describe('criação do pedido', () => {
     expect(argsOf(insert!, 'insert')[0]![0]).toEqual({
       user_id: USER.id,
       course_id: COURSE.id,
+      payment_method: 'pix',
       amount_cents: 19700,
       status: 'pending',
       source: 'checkout',
@@ -445,5 +446,171 @@ describe('falhas do provedor', () => {
     const updates = of('service', 'orders', 'update');
     expect(updates).toHaveLength(2);
     expect(argsOf(updates[1]!, 'update')[0]![0]).toEqual({ status: 'failed' });
+  });
+});
+
+describe('cartão (checkout hospedado, PAY-007)', () => {
+  const cardInput = { courseSlug: COURSE.slug, paymentMethod: 'card' };
+  const BILL = 'bill_abc123xyz';
+  const PAY_URL = `https://app.abacatepay.com/pay/${BILL}`;
+  const product = {
+    data: { id: 'prod_abc', price: COURSE.priceCents, externalId: 'x' },
+    success: true,
+    error: null,
+  };
+  const checkout = (over: Record<string, unknown> = {}) => ({
+    data: {
+      id: BILL,
+      url: PAY_URL,
+      amount: COURSE.priceCents,
+      status: 'PENDING',
+      externalId: ORDER,
+      ...over,
+    },
+    success: true,
+    error: null,
+  });
+  const notFound = () =>
+    json({ data: null, success: false, error: 'Produto não encontrado.' }, 404);
+  const pathOf = (i: number) => new URL(String(fetchMock.mock.calls[i]![0])).pathname;
+  const bodyOf = (i: number) =>
+    JSON.parse((fetchMock.mock.calls[i]![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://learn.example.com');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://x.supabase.co');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_x');
+    vi.stubEnv('ABACATEPAY_API_BASE_URL', '');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('sem CPF/telefone: cria produto espelho (404 → create), checkout só CARD e redireciona para a AbacatePay', async () => {
+    fetchMock
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(json(product))
+      .mockResolvedValueOnce(json(checkout()));
+    const { redirectTo } = await run({ ...cardInput, amountCents: 1, taxId: 'lixo' });
+    expect(redirectTo).toBe(PAY_URL);
+
+    // não grava CPF/telefone no perfil
+    expect(of('user', 'profiles', 'update')).toHaveLength(0);
+
+    const [insert] = of('service', 'orders', 'insert');
+    expect(argsOf(insert!, 'insert')[0]![0]).toMatchObject({
+      amount_cents: 19700,
+      payment_method: 'card',
+      user_id: USER.id,
+    });
+
+    expect(pathOf(0)).toBe('/v2/products/get');
+    expect(String(fetchMock.mock.calls[0]![0])).toContain(`externalId=course-${COURSE.id}-19700`);
+    expect(pathOf(1)).toBe('/v2/products/create');
+    expect(bodyOf(1)).toEqual({
+      externalId: `course-${COURSE.id}-19700`,
+      name: COURSE.title,
+      price: 19700,
+      currency: 'BRL',
+    });
+    expect(pathOf(2)).toBe('/v2/checkouts/create');
+    expect(bodyOf(2)).toEqual({
+      items: [{ id: 'prod_abc', quantity: 1 }],
+      methods: ['CARD'],
+      externalId: ORDER,
+      returnUrl: `https://learn.example.com/checkout/pedido/${ORDER}`,
+      completionUrl: `https://learn.example.com/checkout/pedido/${ORDER}`,
+      card: { maxInstallments: 12 },
+      metadata: { orderId: ORDER, courseId: COURSE.id },
+    });
+
+    const [save] = of('service', 'orders', 'update');
+    expect(argsOf(save!, 'update')[0]![0]).toMatchObject({
+      provider_billing_id: BILL,
+      checkout_url: PAY_URL,
+    });
+    expect(argsOf(save!, 'eq')).toEqual([
+      ['id', ORDER],
+      ['status', 'pending'],
+    ]);
+  });
+
+  it('produto já existe → não cria outro; parcelas limitadas a R$ 10 cada', async () => {
+    getPublishedCourse.mockResolvedValue({ ...COURSE, priceCents: 2990 });
+    fetchMock
+      .mockResolvedValueOnce(json({ ...product, data: { ...product.data, price: 2990 } }))
+      .mockResolvedValueOnce(json(checkout({ amount: 2990 })));
+    await run(cardInput);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pathOf(1)).toBe('/v2/checkouts/create');
+    expect(bodyOf(1).card).toEqual({ maxInstallments: 2 });
+  });
+
+  it.each([
+    ['valor do checkout ≠ pedido', checkout({ amount: 100 })],
+    ['URL fora da AbacatePay', checkout({ url: 'https://evil.dev/pay/bill_abc123xyz' })],
+    ['checkout de outro pedido', checkout({ externalId: OTHER_ORDER })],
+  ])('%s → pedido failed, sem redirect', async (_name, body) => {
+    fetchMock.mockResolvedValueOnce(json(product)).mockResolvedValueOnce(json(body));
+    const { result, redirectTo } = await run(cardInput);
+    expect(redirectTo).toBeNull();
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('cartão') });
+    const [fail] = of('service', 'orders', 'update');
+    expect(argsOf(fail!, 'update')[0]![0]).toEqual({ status: 'failed' });
+  });
+
+  it('produto editado no painel com outro preço → não cria checkout', async () => {
+    fetchMock.mockResolvedValueOnce(json({ ...product, data: { ...product.data, price: 1 } }));
+    const { result } = await run(cardInput);
+    expect(result).toMatchObject({ ok: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reaproveita checkout de cartão pendente válido (redirect direto para a URL salva)', async () => {
+    responses['user.orders.select'] = [
+      {
+        data: {
+          id: OTHER_ORDER,
+          expires_at: inMinutes(30),
+          pix_br_code: null,
+          checkout_url: PAY_URL,
+          payment_method: 'card',
+          created_at: agoMinutes(5),
+        },
+        error: null,
+      },
+    ];
+    const { redirectTo } = await run(cardInput);
+    expect(redirectTo).toBe(PAY_URL);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(of('service', 'orders', 'insert')).toHaveLength(0);
+  });
+
+  it('trocar de método: PIX pendente válido vira expired e nasce o pedido de cartão', async () => {
+    responses['user.orders.select'] = [
+      {
+        data: {
+          id: OTHER_ORDER,
+          expires_at: inMinutes(30),
+          pix_br_code: '000201',
+          checkout_url: null,
+          payment_method: 'pix',
+          created_at: agoMinutes(5),
+        },
+        error: null,
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(json(product)).mockResolvedValueOnce(json(checkout()));
+    const { redirectTo } = await run(cardInput);
+    expect(redirectTo).toBe(PAY_URL);
+    const [expire] = of('service', 'orders', 'update');
+    expect(argsOf(expire!, 'update')[0]![0]).toEqual({ status: 'expired' });
+  });
+
+  it('método inválido → erro de validação, nada no banco', async () => {
+    const { result } = await run({ ...cardInput, paymentMethod: 'boleto' });
+    expect(result).toMatchObject({ ok: false });
+    expect(calls).toHaveLength(0);
   });
 });

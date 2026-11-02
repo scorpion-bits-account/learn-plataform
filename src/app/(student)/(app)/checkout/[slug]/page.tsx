@@ -29,6 +29,7 @@ export default async function CheckoutPage({ params }: { params: Params }) {
       hasAccess={data.hasAccess}
       prefill={data.prefill}
       pendingOrderId={data.pendingOrderId}
+      pendingMethod={data.pendingMethod}
     />
   );
 }

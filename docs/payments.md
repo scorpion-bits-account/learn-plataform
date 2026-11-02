@@ -10,7 +10,7 @@
 | Versão da API | **v2** (`https://api.abacatepay.com/v2`). A v1 é legada: "toda a evolução da plataforma acontece na v2" ([v1/introduction](https://docs.abacatepay.com/pages/v1/introduction)). |
 | Produto da API | **Checkout Transparente PIX** (`POST /v2/transparents/create`): o valor é enviado por cobrança (sem cadastrar produto), e há `externalId`, `expiresIn` e simulação em Dev mode. O QR Code é exibido na nossa página `/checkout/pedido/[id]`. Ver a justificativa em §1. |
 | Autenticação do webhook | O **`webhookSecret` na query string é a única prova de origem**. O `X-Webhook-Signature` usa uma **chave pública, igual para todas as contas** e publicada na documentação. Ele só garante a integridade do corpo, nunca a autenticidade ([webhooks/security](https://docs.abacatepay.com/pages/webhooks/security)). Por isso a **reconsulta do status na API continua obrigatória** (ADR-008). |
-| Eventos usados | `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` (e os equivalentes `checkout.*` se um dia usarmos o checkout hospedado). **Não existe evento de expiração nem de falha** para PIX: a expiração é tratada por consulta. |
+| Eventos usados | `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` e, desde o PAY-007 (cartão), `checkout.completed`, `checkout.refunded`, `checkout.disputed`, `checkout.lost` (§10). **Não existe evento de expiração nem de falha** para PIX: a expiração é tratada por consulta. |
 | Taxa PIX | R$ 0,80 por transação, sem mensalidade ([concepts/taxas](https://docs.abacatepay.com/pages/concepts/taxas)). |
 | Cakto | **Manter a AbacatePay no MVP (somente PIX). Reavaliar quando o cartão entrar no escopo.** Ver §9. |
 
@@ -106,7 +106,7 @@ Os valores de `status` são `PENDING | EXPIRED | CANCELLED | PAID | UNDER_DISPUT
 
 Cadastro: pelo painel ou por `POST /v2/webhooks/create` com `{ name, endpoint (HTTPS público), secret, events[] }` ([webhooks/create](https://docs.abacatepay.com/pages/webhooks/create)). Webhooks de Dev mode e de produção são **cadastros separados**. Ao ir para produção, o webhook precisa ser recriado ([production](https://docs.abacatepay.com/pages/production)). URL cadastrada: `https://<app>.vercel.app/api/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>`. Não use redirect: o `3xx` não é seguido ([webhooks](https://docs.abacatepay.com/pages/webhooks)). Quando o domínio mudar, recrie o webhook (ADR-015).
 
-Assine estes eventos: `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost`.
+Assine estes eventos: `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` e, para cartão (PAY-007, §10), `checkout.completed`, `checkout.refunded`, `checkout.disputed`, `checkout.lost`.
 
 ### 4.1 Verificação (duas camadas, nesta ordem)
 
@@ -272,6 +272,106 @@ Justificativa: no PIX, a AbacatePay é mais barata (R$ 0,80 contra R$ 2,49 + R$ 
 
 ---
 
+## 10. Cartão (PAY-007)
+
+> Spike de 2026-11-02 sobre a documentação atual ([llms.txt](https://docs.abacatepay.com/llms.txt)). Decisão registrada na **ADR-022**. O que a doc não responde está marcado **A CONFIRMAR** (testar em Dev mode e no primeiro pagamento real de produção).
+
+### 10.1 Como cobrar cartão no nosso desenho (preço no nosso banco, nosso `orderId`)
+
+Há dois caminhos documentados na v2:
+
+| | **Checkout hospedado** (`/v2/checkouts/*`) ✅ escolhido | Cartão no checkout transparente (`/v2/transparents/create`, `method: "CARD"`) |
+|---|---|---|
+| Valor | **Não aceita valor livre**: o total é calculado a partir de `items[].id` (produtos cadastrados). Só `items` é obrigatório ([payment/create](https://docs.abacatepay.com/pages/payment/create)) | `data.amount` livre por cobrança, mínimo `100` ([transparents/card](https://docs.abacatepay.com/pages/transparents/card)) |
+| Nosso `orderId` | `externalId` e `metadata` livres; voltam no `GET /checkouts/get` e no webhook em `data.checkout.externalId` ([payment/create](https://docs.abacatepay.com/pages/payment/create), [events/checkout](https://docs.abacatepay.com/pages/webhooks/events/checkout)) | **`externalId` é ignorado no cartão**; só `metadata` (todos os valores texto) ([transparents/card](https://docs.abacatepay.com/pages/transparents/card)) |
+| Dados do cartão | Digitados no site da AbacatePay (`app.abacatepay.com/pay/bill_…`). Nada passa por nós | Iframe do `abacatepay.js` (script de `abacatepay.com` carregado **na nossa página**) gera um `ctok_` de 60 s, uso único, atrelado ao `amount`; nosso backend envia o token ([guides/cartao-transparente](https://docs.abacatepay.com/pages/guides/cartao-transparente), [abacatepay-js](https://docs.abacatepay.com/pages/transparents/abacatepay-js)) |
+| Chaves | Só a chave de API | Chave de API + **chave pública** `pk_…` no navegador ([public-key](https://docs.abacatepay.com/pages/transparents/public-key)) |
+| Liberação na conta | Cartão no checkout (o que a conta recebeu) | Exige `CARD_TRANSPARENTS` liberado à parte, senão `CARD_TRANSPARENTS is not available for this store` ([transparents/card#erros](https://docs.abacatepay.com/pages/transparents/card)) |
+| Status de "pago" | `PAID` no checkout | `APPROVED` (liberar) → `PAID` (repasse da adquirente); `transparents/check` é **só PIX**, cartão usa `GET /transparents/get` |
+| Riscos | Produto espelhado na AbacatePay; aluno sai do site | Script de terceiro no nosso domínio (CSP, cadeia de suprimentos, nova dependência → ADR); 3DS em janela própria; timeout ≠ recusa (risco de cobrança em dobro com `cardToken`); só Visa/Mastercard; `customer` completo obrigatório |
+
+**Escolha: checkout hospedado, só com `methods: ["CARD"]`** (o PIX continua no transparente). Motivos: os dados de cartão nunca tocam o nosso servidor **nem a nossa página** (o formulário é da AbacatePay), não precisamos de script de terceiro nem de `CARD_TRANSPARENTS`, e o `externalId` = `orders.id` volta no webhook como já fazemos no PIX.
+
+**Como manter o preço do nosso banco** com um checkout que só aceita produtos:
+1. O pedido nasce com `amount_cents` lido do curso (igual ao PIX).
+2. O servidor espelha um **produto avulso por (curso, preço)**: `externalId = "course-<courseId>-<amountCents>"`, `price = amountCents`, `currency: "BRL"`, sem `cycle`. Busca com `GET /v2/products/get?externalId=` e, se não existir (404), cria com `POST /v2/products/create` ([products/create](https://docs.abacatepay.com/pages/products/create), [products/get](https://docs.abacatepay.com/pages/products/get)). Mudou o preço → muda o `externalId` → produto novo (a v2 não tem rota de atualização de produto). Produto de Dev mode não existe em produção (campo `devMode`): o primeiro checkout de produção cria o seu.
+3. `POST /v2/checkouts/create` com `items: [{ id: <prod_…>, quantity: 1 }]`, `methods: ["CARD"]`, `externalId: orders.id`, `metadata: { orderId, courseId }`, `card: { maxInstallments }`, `returnUrl` e `completionUrl` = `/checkout/pedido/<orderId>` ([payment/create](https://docs.abacatepay.com/pages/payment/create)). Sem `coupons`, sem `customerId`, sem `passFeesToCustomer`.
+4. **Sanidade antes do redirect:** a resposta precisa ter `amount === orders.amount_cents`, `externalId === orders.id` (se vier) e `url` em `https://app.abacatepay.com/…`. Qualquer divergência → pedido `failed`, nada é exibido ao aluno. (Se alguém editar o preço do produto no painel, o checkout sai com outro valor e é recusado aqui; ver A CONFIRMAR.)
+5. Gravamos `provider_billing_id = data.id` (`bill_…`) e `checkout_url = data.url`, e fazemos `redirect` para a URL.
+
+A CONFIRMAR: (a) `POST /products/create` com `externalId` repetido (erro ou devolve o existente?) — tratamos `get` 404 → `create`, e numa corrida o `create` falho é seguido de novo `get`; (b) se o produto editado no painel muda o `amount` de checkouts novos (esperado: sim, por isso a checagem); (c) se o checkout aceita cupons digitados pelo cliente sem `coupons` na criação (esperado: não; mesmo assim exigimos `paidAmount` = `amount_cents` na reconsulta, e `REDEEMED` não libera).
+
+### 10.2 Parcelamento
+
+- **Quem configura:** a API, por checkout: `card.maxInstallments` (1–12); o cliente escolhe no checkout de 1x até o máximo ([payment/installments](https://docs.abacatepay.com/pages/payment/installments)). Não achamos configuração de painel que se sobreponha: **A CONFIRMAR**.
+- **Limites:** até 12x; **parcela mínima de R$ 10,00** (`"Total below minimum for Nx (R$10 per installment)"`). Por isso enviamos `maxInstallments = min(CARD_MAX_INSTALLMENTS, floor(amount_cents / 1000))`, nunca abaixo de 1.
+- **Juros/taxa por conta de quem:** por padrão, **da loja** — a taxa sobe com as parcelas (tabela em §7: 3,50% à vista, 4,00% 2–6x, 4,50% 7–12x + R$ 0,60; no plano D+1, efetiva de 5,42% a 17,37%). A taxa exata da conta fica em **Perfil → Taxas** ([concepts/taxas](https://docs.abacatepay.com/pages/concepts/taxas)). `card.passFeesToCustomer: true` repassa a taxa ao cliente (o checkout mostra o total de cada opção), mas exige conta "Rinne" habilitada e muda o `amount` do webhook para o total pago ([guides/repasse-de-taxa](https://docs.abacatepay.com/pages/guides/repasse-de-taxa)). **Não usamos** (o valor cobrado deixaria de ser `amount_cents`). Repassar juros ao aluno é decisão do produto (**A CONFIRMAR**); se decidido, a checagem de valor precisa passar a usar `amount - customerFee`.
+- Depois do pagamento, `installmentsCount` mostra as parcelas escolhidas (`null` à vista).
+
+### 10.3 Webhooks do checkout e reconsulta autenticada
+
+Eventos ([webhooks/reference](https://docs.abacatepay.com/pages/webhooks/reference), [events/checkout](https://docs.abacatepay.com/pages/webhooks/events/checkout)): **`checkout.completed`**, **`checkout.refunded`**, **`checkout.disputed`**, **`checkout.lost`**. Mesmo envelope v2 `{ id: "log_…", event, apiVersion: 2, devMode, data }` e a mesma verificação (`webhookSecret` + HMAC público) ([webhooks](https://docs.abacatepay.com/pages/webhooks), [webhooks/security](https://docs.abacatepay.com/pages/webhooks/security)).
+
+```jsonc
+// data de checkout.completed (cartão) — campos que usamos
+{ "checkout": { "id": "bill_abc123xyz", "externalId": "<orders.id>", "amount": 10000, "paidAmount": 10000,
+                "status": "PAID", "methods": ["CARD"], "installmentsCount": null, "customerFee": null },
+  "customer": { "taxId": "123.***.***-**" }, "payerInformation": { "method": "CARD", "CARD": { "number": "1234", "brand": "VISA" } } }
+```
+
+- Pedido resolvido por `data.checkout.externalId`; a cobrança que vale é a gravada (`bill_…`).
+- **Reconsulta (equivalente ao `transparents/check`):** `GET /v2/checkouts/get?id=bill_…` (permissão `CHECKOUT:READ`), que traz `status` (`PENDING | EXPIRED | CANCELLED | PAID | REFUNDED | REDEEMED`), `amount`, `paidAmount` e `externalId` ([payment/one](https://docs.abacatepay.com/pages/payment/one)). Liberar só com `PAID`, `amount` = `amount_cents`, `paidAmount` (se vier) = `amount_cents` e `externalId` (se vier) = `orders.id`.
+- Os exemplos de `checkout.refunded`/`checkout.disputed` trazem `status: "PAID"` dentro de `data.checkout`: como no PIX, decidimos pelo **nome do evento + reconsulta**, nunca por `data.*.status`.
+- Upsell gera um segundo `checkout.completed` com o mesmo `checkout.id` ([events/checkout#upsell](https://docs.abacatepay.com/pages/webhooks/events/checkout)); não usamos upsell, e o dedupe é pelo `id` do evento.
+- A CONFIRMAR: (a) `checkout.lost` aparece na tabela de [webhooks/reference](https://docs.abacatepay.com/pages/webhooks/reference) mas não na de [webhooks](https://docs.abacatepay.com/pages/webhooks) — assinar mesmo assim; (b) se, no cartão, `GET /checkouts/get` já devolve `PAID` logo após a aprovação (o exemplo do evento sim; `PENDING` é tratado como transitório → 503, a AbacatePay re-tenta); (c) qual `status` a reconsulta mostra depois de `checkout.lost` (exigimos `REFUNDED`, como no PIX; senão fica `processing_error` para o admin).
+
+### 10.4 Reembolso e chargeback
+
+- **Rota:** `POST /v2/checkouts/refund` com `{ id: "bill_…", reason }`, permissão **`REFUND:CREATE`** (a mesma do PIX) ([payment/refund](https://docs.abacatepay.com/pages/payment/refund)). O `id` também aceita `card_…`/`char_…`.
+- **Regras:** só reembolso **total**; cartão precisa estar `APPROVED` ou `COMPLETE`; em disputa não reembolsa (`TRANSACTION_UNDER_DISPUTE`); sai do saldo `available` (ou `pending`, em casos de cartão) → senão `INSUFFICIENT_FUNDS`; idempotente (`"Esta cobrança já foi reembolsada."`); em Dev é instantâneo. Mesmos códigos de erro do PIX (`LOCK_NOT_ACQUIRED`, `TRANSACTION_NOT_REFUNDABLE`, `REFUND_REQUEST_FAILED`, `REFUND_CONFIRMATION_FAILED`…). Conclui com **`checkout.refunded`**. A taxa do cartão **não é devolvida** à loja ([guides/repasse-de-taxa](https://docs.abacatepay.com/pages/guides/repasse-de-taxa)).
+- **Prazos:** prazo máximo para reembolsar e em quanto tempo o estorno aparece na fatura do aluno **não estão documentados** (**A CONFIRMAR** com o suporte). O texto da tela de reembolsado já diz que pode levar alguns dias.
+- **Chargeback/disputa:** não há página dedicada; só os eventos `checkout.disputed` (com `data.reason`) e `checkout.lost` ([webhooks/reference](https://docs.abacatepay.com/pages/webhooks/reference)). O status `UNDER_DISPUTE` existe para cobranças de cartão ([transparents/card#status](https://docs.abacatepay.com/pages/transparents/card)). Tratamento igual ao PIX: `disputed` só registra e alerta (acesso mantido), `lost` revoga via `refund_order`. Taxa de chargeback, prazo de defesa e envio de evidências: **A CONFIRMAR** (não documentados).
+
+### 10.5 Permissões da chave e Dev × produção
+
+Permissões ([authentication#permissões-da-chave-de-api](https://docs.abacatepay.com/pages/authentication)). As permissões **não podem ser editadas** depois de criada a chave: é preciso criar uma chave nova. Sem permissão, a API agora responde **403** `Insufficient permissions` (tratamos 401 e 403 como "chave recusada").
+
+| Permissão | Para quê |
+|---|---|
+| `TRANSPARENT:CREATE` | Criar PIX (e `simulate-payment` em Dev) |
+| `TRANSPARENT:READ` | Reconsultar PIX (`/transparents/check`) |
+| `CHECKOUT:CREATE` | **Novo:** criar o checkout de cartão |
+| `CHECKOUT:READ` | **Novo:** reconsultar o checkout (`/checkouts/get`) |
+| `PRODUCT:READ` | **Novo:** achar o produto espelho (`/products/get?externalId=`) |
+| `PRODUCT:CREATE` | **Novo:** criar o produto espelho |
+| `REFUND:CREATE` | Reembolso pelo admin (PIX e cartão) |
+
+Dev × produção ([devmode](https://docs.abacatepay.com/pages/devmode), [production](https://docs.abacatepay.com/pages/production)):
+- Mesmo host; o ambiente vem da chave (`abc_dev_…` × `abc_prod_…`). Webhooks de Dev **não** valem em produção: recriar com os 8 eventos.
+- Em Dev, o cartão do checkout hospedado é pago **no navegador** com `4242 4242 4242 4242` (validade futura, qualquer CVV); recusas: `…0002` (emissor), `…0069` (expirado), `…0127` (CVV). **Não há rota documentada para simular o pagamento de um checkout** (A CONFIRMAR; no E2E o mock tem uma).
+- Produtos são por ambiente (`devMode`): os de Dev não aparecem em produção.
+- Produção: em produção só Visa e Mastercard estão documentados para o transparente; bandeiras aceitas no hospedado **A CONFIRMAR**. 3DS pode ser pedido pelo banco (é tratado na página da AbacatePay).
+
+### 10.6 Fluxo implementado
+
+```text
+/checkout/[slug] (PIX | Cartão) ── startCheckout(paymentMethod=card)
+  → orders(pending, payment_method=card, amount_cents do banco)
+  → products/get?externalId=course-<id>-<cents> (404 → products/create)
+  → checkouts/create {items, methods:[CARD], externalId=order.id, card.maxInstallments, returnUrl/completionUrl}
+  → confere amount/externalId/url → grava provider_billing_id=bill_…, checkout_url → redirect(app.abacatepay.com/pay/bill_…)
+Aluno paga na AbacatePay → volta para /checkout/pedido/<id> (polling + reconsulta checkouts/get no plano B)
+checkout.completed → webhook (segredo + HMAC + dedupe) → checkouts/get = PAID e valores batem → fulfill_order
+checkout.refunded | checkout.lost → checkouts/get = REFUNDED → refund_order · checkout.disputed → registra + ALERTA
+Admin: Reconsultar (checkouts/get) · Reembolsar (checkouts/refund)
+```
+
+Webhook `checkout.*`: o pedido precisa ser `payment_method = card` (evento de checkout em pedido PIX, ou `transparent.*` em pedido de cartão → `method_mismatch`, 200). A reconsulta `checkouts/get` precisa dizer `PAID`, com `amount`/`paidAmount` = `amount_cents` e `externalId` = `orders.id` (decisão única em `src/lib/payments/verdict.ts`, usada também pelo polling e pelo admin). `PENDING` → 503 (re-tentado).
+
+Pedido de cartão pendente é reaproveitado por **1 h** (`expires_at`; mesma URL do checkout). Depois disso, ou se o aluno trocar de método, ele vira `expired` e um novo é criado; se o checkout antigo ainda for pago, `fulfill_order` aceita `expired → paid` (e um pagamento em duplicidade aparece como `paid_already_enrolled` para o admin reembolsar).
+
+---
+
 ## Desenho (atualizado pelo PAY-001)
 
 ```text
@@ -302,14 +402,14 @@ Job/admin "Reconsultar" ── GET /transparents/check ──▶ PAID → fulfil
 - Reembolso (`transparent.refunded`, ou `transparent.lost`) marca `orders.status='refunded'` e revoga a matrícula de origem `purchase` daquele pedido (ADR-017). Reembolso iniciado por nós usa `POST /v2/transparents/refund`. Tratar `"Esta cobrança já foi reembolsada."` como sucesso e `INSUFFICIENT_FUNDS` como erro exibido ao admin.
 - **Política de reembolso (decidida, Q8b): CDC art. 49.** O aluno pode pedir reembolso em até **7 dias da compra** (`paid_at + 7 dias`). O admin executa via API. O acesso é revogado **automaticamente quando o provedor confirma** (`transparent.refunded`), nunca antes. A regra de "10 minutos" foi descartada. Mantenha saldo suficiente na AbacatePay para cobrir os reembolsos da janela de 7 dias (o reembolso é debitado do saldo).
 - Disputa (`transparent.disputed`) só registra e alerta. Manter ou suspender o acesso durante a disputa é **decisão do produto**.
-- MVP: **somente PIX**. Domínio: URL padrão Vercel. Ao trocar o domínio, recriar o webhook (Dev e produção são cadastros separados).
+- Métodos: **PIX** (transparente) e, desde o PAY-007, **cartão** (checkout hospedado, §10/ADR-022). Domínio: URL padrão Vercel. Ao trocar o domínio, recriar o webhook (Dev e produção são cadastros separados).
 - Admin: botão "Reconsultar pagamento" (`check`) e job de expiração de pendentes (pós-MVP: Vercel Cron).
 - Logs sem CPF completo, sem payload bruto com dados pessoais e **sem a URL do webhook (contém o segredo)**.
 - Env: `ABACATEPAY_API_KEY` (dev `abc_dev_…` / prod `abc_prod_…`), `ABACATEPAY_WEBHOOK_SECRET`. A chave HMAC é **pública** (ver §4.1).
 
 ## Implementado — webhook (`PAY-003`)
 
-**URL a cadastrar no painel da AbacatePay** (um cadastro para Dev, outro para produção), com os eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed` e `transparent.lost`:
+**URL a cadastrar no painel da AbacatePay** (um cadastro para Dev, outro para produção), com os eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost`, `checkout.completed`, `checkout.refunded`, `checkout.disputed` e `checkout.lost`:
 
 ```text
 https://<app>.vercel.app/api/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>

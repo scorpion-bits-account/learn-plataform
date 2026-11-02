@@ -56,13 +56,15 @@ const ORDER: MyOrder = {
   pixBrCode:
     '00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-4266141740005204000053039865802BR5913SCORPION BITS6009SAO PAULO62070503***6304ABCD',
   pixQrSrc: QR,
+  paymentMethod: 'pix',
+  checkoutUrl: null,
   course: { slug: MOCK_COURSES[0]!.slug, title: MOCK_COURSES[0]!.title },
 };
 
 /**
  * Vitrine do checkout (PAY-002) com dados fictícios; 404 em produção. O botão
  * "Gerar PIX" chama a action real (exige sessão/env), então use só para layout.
- * `?state=prefill|error|provider-error|pending|owned|free|loading|order|order-paid|order-failed|qr|qr-expired|paid`.
+ * `?state=prefill|error|provider-error|pending|owned|free|loading|order|order-paid|order-failed|qr|qr-expired|paid|card|pending-card`.
  */
 export default async function CheckoutShowcase({ searchParams }: { searchParams: SearchParams }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -75,6 +77,20 @@ export default async function CheckoutShowcase({ searchParams }: { searchParams:
   if (state === 'loading') body = <CheckoutSkeleton />;
   else if (state === 'order' || state === 'qr')
     body = <OrderStatusView order={ORDER} poll={false} />;
+  else if (state === 'card')
+    body = (
+      <OrderStatusView
+        order={{
+          ...ORDER,
+          paymentMethod: 'card',
+          hasPix: false,
+          pixBrCode: null,
+          pixQrSrc: null,
+          checkoutUrl: 'https://app.abacatepay.com/pay/bill_vitrine',
+        }}
+        poll={false}
+      />
+    );
   else if (state === 'qr-expired')
     body = (
       <OrderStatusView
@@ -109,7 +125,8 @@ export default async function CheckoutShowcase({ searchParams }: { searchParams:
                 phone: state === 'error' ? '(11) 84002' : '',
               }
         }
-        pendingOrderId={state === 'pending' ? ORDER.id : null}
+        pendingOrderId={state === 'pending' || state === 'pending-card' ? ORDER.id : null}
+        pendingMethod={state === 'pending-card' ? 'card' : 'pix'}
         initialState={
           state === 'error'
             ? ERROR_STATE
