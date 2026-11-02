@@ -108,7 +108,8 @@ export default function PrivacidadePage() {
           </li>
           <li>
             <strong>AbacatePay</strong>: processamento dos pagamentos PIX (recebe nome, e-mail, CPF
-            e telefone).
+            e telefone) e com cartão (os dados do cartão e do titular são informados diretamente à
+            AbacatePay, na página dela).
           </li>
           <li>
             <strong>Vercel</strong>: hospedagem da aplicação.

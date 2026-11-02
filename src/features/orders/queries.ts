@@ -65,7 +65,7 @@ export async function listOrders(
   let query = supabase
     .from('orders')
     .select(
-      'id, user_id, status, source, amount_cents, created_at, paid_at, refund_requested_at, courses(title)',
+      'id, user_id, status, source, payment_method, amount_cents, created_at, paid_at, refund_requested_at, courses(title)',
       { count: 'exact' },
     );
   if (params.refundQueue) {
@@ -87,6 +87,7 @@ export async function listOrders(
     id: o.id,
     status: o.status,
     source: o.source,
+    paymentMethod: o.payment_method,
     amountCents: o.amount_cents,
     createdAt: o.created_at,
     paidAt: o.paid_at,
@@ -107,7 +108,7 @@ export async function getOrderDetail(id: string): Promise<AdminOrderDetail | nul
   const { data: o, error } = await supabase
     .from('orders')
     .select(
-      'id, user_id, course_id, status, source, amount_cents, created_at, paid_at, expires_at, refund_requested_at, refund_requested_progress, refunded_at, provider_billing_id, courses(title)',
+      'id, user_id, course_id, status, source, amount_cents, created_at, paid_at, expires_at, refund_requested_at, refund_requested_progress, refunded_at, provider_billing_id, payment_method, courses(title)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -143,6 +144,7 @@ export async function getOrderDetail(id: string): Promise<AdminOrderDetail | nul
     id: o.id,
     status: o.status,
     source: o.source,
+    paymentMethod: o.payment_method,
     amountCents: o.amount_cents,
     createdAt: o.created_at,
     paidAt: o.paid_at,

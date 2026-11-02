@@ -6,9 +6,12 @@ import { getPaymentsEnv } from '@/lib/env/server';
 import { safeEqual, verifyWebhookSignature } from '@/lib/payments/abacatepay-webhook';
 import {
   PaymentProviderError,
+  getCardCheckoutStatus as defaultGetCardCheckoutStatus,
   getPixStatus as defaultGetPixStatus,
+  type CardCheckoutStatusResult,
   type PixStatusResult,
 } from '@/lib/payments/abacatepay';
+import { providerVerdict, type RemoteChargeState } from '@/lib/payments/verdict';
 import type { Json } from '@/types/database';
 
 import {
@@ -19,8 +22,11 @@ import {
 } from './store';
 
 /**
- * Webhook da AbacatePay (docs/payments.md §4–§5, PAY-003). Lógica pura: a rota
- * só adapta Request/Response.
+ * Webhook da AbacatePay (docs/payments.md §4–§5, PAY-003; cartão §10, PAY-007).
+ * Lógica pura: a rota só adapta Request/Response.
+ *
+ * - `transparent.*` → pedidos PIX, reconsulta `GET /transparents/check`;
+ * - `checkout.*` → pedidos de cartão (checkout hospedado), reconsulta `GET /checkouts/get`.
  *
  * Garantias:
  * - origem pelo `webhookSecret` (tempo constante) e integridade pelo HMAC do corpo bruto;
@@ -76,6 +82,7 @@ export interface WebhookDeps {
   getConfig: () => WebhookConfig;
   getStore: () => WebhookStore;
   getPixStatus: (billingId: string) => Promise<PixStatusResult>;
+  getCardCheckoutStatus: (billingId: string) => Promise<CardCheckoutStatusResult>;
   log: WebhookLogger;
 }
 
@@ -100,12 +107,27 @@ const eventSchema = z.object({
   devMode: loose(z.boolean()),
   data: z.object({
     transparent: loose(chargeSchema),
+    checkout: loose(chargeSchema),
     reason: loose(z.string().max(200)),
   }),
 });
 
 type WebhookEvent = z.infer<typeof eventSchema>;
 type Charge = z.infer<typeof chargeSchema>;
+
+/** Família do evento: `transparent.*` (PIX) ou `checkout.*` (cartão, checkout hospedado). */
+type EventKind = 'pix' | 'card';
+
+function eventKind(event: string): EventKind | null {
+  if (event.startsWith('transparent.')) return 'pix';
+  if (event.startsWith('checkout.')) return 'card';
+  return null;
+}
+
+/** Cobrança do evento conforme a família (`data.transparent` ou `data.checkout`). */
+function chargeOf(evt: WebhookEvent): Charge | undefined {
+  return eventKind(evt.event) === 'card' ? evt.data.checkout : evt.data.transparent;
+}
 
 const uuidSchema = z.uuid();
 
@@ -157,21 +179,22 @@ export function sameBillingId(stored: string, fromEvent: string): boolean {
 
 /** Corpo guardado em `payment_events.payload`: só os campos usados (sem dados do pagador). */
 function storedPayload(evt: WebhookEvent): Json {
-  const charge = evt.data.transparent;
+  const charge = chargeOf(evt);
+  const reduced = charge
+    ? {
+        id: charge.id ?? null,
+        externalId: charge.externalId ?? null,
+        amount: charge.amount ?? null,
+        paidAmount: charge.paidAmount ?? null,
+        status: charge.status ?? null,
+      }
+    : null;
   return {
     id: evt.id ?? null,
     event: evt.event,
     devMode: evt.devMode ?? null,
     data: {
-      transparent: charge
-        ? {
-            id: charge.id ?? null,
-            externalId: charge.externalId ?? null,
-            amount: charge.amount ?? null,
-            paidAmount: charge.paidAmount ?? null,
-            status: charge.status ?? null,
-          }
-        : null,
+      [eventKind(evt.event) === 'card' ? 'checkout' : 'transparent']: reduced,
       reason: evt.data.reason ?? null,
     },
   };
@@ -194,6 +217,7 @@ export function defaultWebhookDeps(): WebhookDeps {
     },
     getStore: () => createWebhookStore(),
     getPixStatus: defaultGetPixStatus,
+    getCardCheckoutStatus: defaultGetCardCheckoutStatus,
     log: defaultLog,
   };
 }
@@ -272,7 +296,8 @@ export async function handleAbacatePayWebhook(
     return reply(400, 'invalid_payload');
   }
   const evt = parsed.data;
-  const charge = evt.data.transparent;
+  const charge = chargeOf(evt);
+  const kind = eventKind(evt.event);
   // Sem `id` de topo (pendência 1 do payments.md): chave determinística por evento+cobrança.
   const eventId = evt.id ?? (charge?.id ? `${evt.event}:${charge.id}` : null);
   if (!eventId) {
@@ -308,15 +333,20 @@ export async function handleAbacatePayWebhook(
       deps,
       eventId,
       charge,
+      kind: kind ?? 'pix',
       log: (l, m, f) => log(l, m, { ...fields, ...f }),
     };
     switch (evt.event) {
       case 'transparent.completed':
+      case 'checkout.completed':
         return reply(200, await processCompleted(ctx));
       case 'transparent.refunded':
       case 'transparent.lost':
+      case 'checkout.refunded':
+      case 'checkout.lost':
         return reply(200, await processRefund(ctx));
       case 'transparent.disputed':
+      case 'checkout.disputed':
         return reply(200, await processDispute(ctx, evt.data.reason));
       default:
         throw new DataError('unsupported_event', null);
@@ -371,10 +401,14 @@ interface Ctx {
   deps: WebhookDeps;
   eventId: string;
   charge: Charge | undefined;
+  kind: EventKind;
   log: WebhookLogger;
 }
 
-/** Pedido pelo `externalId` (= `orders.id`). */
+/**
+ * Pedido pelo `externalId` (= `orders.id`). O método do pedido precisa ser o da
+ * família do evento (evento de checkout nunca mexe em pedido PIX e vice-versa).
+ */
 async function resolveOrder(ctx: Ctx): Promise<WebhookOrder> {
   const externalId = ctx.charge?.externalId;
   if (!externalId || !uuidSchema.safeParse(externalId).success) {
@@ -382,6 +416,9 @@ async function resolveOrder(ctx: Ctx): Promise<WebhookOrder> {
   }
   const order = await ctx.store.findOrder(externalId);
   if (!order) throw new DataError('order_not_found', null);
+  if ((order.paymentMethod ?? 'pix') !== ctx.kind || order.provider !== 'abacatepay') {
+    throw new DataError('method_mismatch', order.id);
+  }
   return order;
 }
 
@@ -406,10 +443,19 @@ async function resolveBillingId(ctx: Ctx, order: WebhookOrder): Promise<string> 
   return fromEvent;
 }
 
-/** Reconsulta autenticada pela nossa chave. Recusa do provedor (4xx) é erro de dado. */
-async function checkCharge(ctx: Ctx, order: WebhookOrder, billingId: string) {
+/**
+ * Reconsulta autenticada pela nossa chave (PIX: `transparents/check`; cartão:
+ * `checkouts/get`). Recusa do provedor (4xx) é erro de dado.
+ */
+async function checkCharge(
+  ctx: Ctx,
+  order: WebhookOrder,
+  billingId: string,
+): Promise<RemoteChargeState> {
   try {
-    return await ctx.deps.getPixStatus(billingId);
+    return ctx.kind === 'card'
+      ? await ctx.deps.getCardCheckoutStatus(billingId)
+      : await ctx.deps.getPixStatus(billingId);
   } catch (error) {
     if (error instanceof PaymentProviderError && error.code === 'invalid_request') {
       throw new DataError('provider_check_rejected', order.id);
@@ -438,14 +484,20 @@ async function processCompleted(ctx: Ctx): Promise<string> {
 
   const billingId = await resolveBillingId(ctx, order);
   const remote = await checkCharge(ctx, order, billingId);
-  const status = remote.status;
-  // PENDING = atraso do provedor: transitório (503, evento segue não processado).
-  if (status === 'PENDING') throw new ProviderPendingError(order.id);
-  if (status !== 'PAID') throw new DataError(`provider_status_${status.toLowerCase()}`, order.id);
-  // QA-002 (S-01): o valor do evento não é confiável sozinho (o segredo da URL pode vazar).
-  // Se a reconsulta informar o valor da cobrança, ele precisa bater com o do pedido.
-  if (remote.amountCents !== null && remote.amountCents !== order.amountCents) {
-    throw new DataError('amount_mismatch', order.id);
+  // QA-002 (S-01): o evento não é confiável sozinho (o segredo da URL pode vazar).
+  // A reconsulta precisa dizer PAID e os valores informados precisam bater com o pedido.
+  switch (providerVerdict(remote, order)) {
+    case 'paid':
+      break;
+    case 'pending':
+      // Atraso do provedor: transitório (503, evento segue não processado).
+      throw new ProviderPendingError(order.id);
+    case 'amount_mismatch':
+      throw new DataError('amount_mismatch', order.id);
+    case 'billing_mismatch':
+      throw new DataError('billing_mismatch', order.id);
+    case 'not_paid':
+      throw new DataError(`provider_status_${remote.status.toLowerCase()}`, order.id);
   }
 
   // Único ponto que concede acesso.
@@ -472,9 +524,12 @@ async function processRefund(ctx: Ctx): Promise<string> {
 
   if (order.status === 'paid') {
     const billingId = await resolveBillingId(ctx, order);
-    const { status } = await checkCharge(ctx, order, billingId);
-    if (status !== 'REFUNDED') {
-      throw new DataError(`provider_status_${status.toLowerCase()}`, order.id);
+    const remote = await checkCharge(ctx, order, billingId);
+    if (remote.externalId != null && remote.externalId !== order.id) {
+      throw new DataError('billing_mismatch', order.id);
+    }
+    if (remote.status !== 'REFUNDED') {
+      throw new DataError(`provider_status_${remote.status.toLowerCase()}`, order.id);
     }
   }
   // Pedido não pago: refund_order não altera nada (already_refunded / invalid_status).
@@ -498,10 +553,14 @@ async function processDispute(ctx: Ctx, reason: string | undefined): Promise<str
     error: null,
   });
   // Alerta para o admin: o acesso continua até o desfecho (decisão do produto).
-  ctx.log('warn', 'ALERTA: disputa aberta (MED)', {
-    orderId: order?.id ?? null,
-    result: 'dispute_recorded',
-    code: reason,
-  });
+  ctx.log(
+    'warn',
+    ctx.kind === 'card' ? 'ALERTA: chargeback aberto (cartão)' : 'ALERTA: disputa aberta (MED)',
+    {
+      orderId: order?.id ?? null,
+      result: 'dispute_recorded',
+      code: reason,
+    },
+  );
   return 'dispute_recorded';
 }

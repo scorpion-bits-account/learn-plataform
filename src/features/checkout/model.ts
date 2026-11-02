@@ -3,6 +3,12 @@ import type { Database } from '@/types/database';
 /** Tipos e funções puras do checkout (sem I/O; seguros no cliente). */
 
 export type OrderStatus = Database['public']['Enums']['order_status'];
+export type OrderPaymentMethod = Database['public']['Enums']['payment_method'];
+
+export const PAYMENT_METHOD_LABEL: Record<OrderPaymentMethod, string> = {
+  pix: 'PIX',
+  card: 'Cartão de crédito',
+};
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'Aguardando pagamento',
@@ -41,6 +47,10 @@ export type MyOrder = {
   expiresAt: string | null;
   createdAt: string;
   hasPix: boolean;
+  /** `pix` ou `card` (pedido de checkout). */
+  paymentMethod: OrderPaymentMethod;
+  /** Checkout hospedado do cartão (validado). Só vem preenchido enquanto `pending`. */
+  checkoutUrl: string | null;
   /** Copia-e-cola PIX. Só vem preenchido enquanto o pedido está `pending`. */
   pixBrCode: string | null;
   /** Data URL de imagem do QR (validada em `toQrSrc`). Só em `pending`. */

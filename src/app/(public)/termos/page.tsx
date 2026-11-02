@@ -13,7 +13,7 @@ const LAST_UPDATED = '8 de outubro de 2026';
 export const metadata: Metadata = {
   title: 'Termos de uso',
   description:
-    'Termos de uso da plataforma Scorpion Bits Learn: contratação de cursos, pagamento via PIX, política de reembolso de 7 dias e regras de conduta.',
+    'Termos de uso da plataforma Scorpion Bits Learn: contratação de cursos, pagamento via PIX ou cartão, política de reembolso de 7 dias e regras de conduta.',
   alternates: { canonical: '/termos' },
   robots: { index: true, follow: true },
 };
@@ -53,10 +53,11 @@ export default function TermosPage() {
 
         <h2>3. Compra e pagamento</h2>
         <p>
-          Os preços são exibidos antes da compra. O pagamento é feito via <strong>PIX</strong>,
-          processado pela AbacatePay. Ao concluir a compra, o acesso ao curso é liberado após a
-          confirmação do pagamento pelo provedor. O preço cobrado é sempre o definido pela
-          plataforma no momento da compra.
+          Os preços são exibidos antes da compra. O pagamento é feito via <strong>PIX</strong> ou{' '}
+          <strong>cartão de crédito</strong>, processado pela AbacatePay. No cartão, os dados são
+          digitados na página segura da AbacatePay e não passam pela plataforma. Ao concluir a
+          compra, o acesso ao curso é liberado após a confirmação do pagamento pelo provedor. O
+          preço cobrado é sempre o definido pela plataforma no momento da compra.
         </p>
 
         <h2>4. Política de reembolso</h2>

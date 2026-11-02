@@ -8,9 +8,13 @@ vi.mock('@/lib/env/server', () => ({ getPaymentsEnv: () => getPaymentsEnv() }));
 import {
   PROVIDER_TIMEOUT_MS,
   PaymentProviderError,
+  cardProductExternalId,
+  createCardCheckout,
   createPixCharge,
+  getCardCheckoutStatus,
   getPixStatus,
   isPaymentsConfigured,
+  refundCardCheckout,
   refundPixCharge,
 } from './abacatepay';
 
@@ -338,5 +342,152 @@ describe('ABACATEPAY_API_BASE_URL (mock dos testes E2E)', () => {
       code: 'provider_unavailable',
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('cartão — checkout hospedado (PAY-007)', () => {
+  const COURSE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const BILL = 'bill_abc123xyz';
+  const cardInput = {
+    orderId: ORDER,
+    courseId: COURSE,
+    amountCents: 4990,
+    productName: 'Godot do zero',
+    maxInstallments: 4,
+    returnUrl: `https://learn.example.com/checkout/pedido/${ORDER}`,
+  };
+  const product = (price = 4990) => ({
+    data: { id: 'prod_1', price, externalId: cardProductExternalId(COURSE, price) },
+    success: true,
+    error: null,
+  });
+  const checkout = (over: Record<string, unknown> = {}) => ({
+    data: {
+      id: BILL,
+      externalId: ORDER,
+      url: `https://app.abacatepay.com/pay/${BILL}`,
+      amount: 4990,
+      status: 'PENDING',
+      ...over,
+    },
+    success: true,
+    error: null,
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('produto existente → checkout com métodos/parcelas/externalId e URL validada', async () => {
+    fetchMock.mockResolvedValueOnce(json(product())).mockResolvedValueOnce(json(checkout()));
+    const res = await createCardCheckout(cardInput);
+    expect(res).toEqual({
+      billingId: BILL,
+      url: `https://app.abacatepay.com/pay/${BILL}`,
+      status: 'PENDING',
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      `https://api.abacatepay.com/v2/products/get?externalId=course-${COURSE}-4990`,
+    );
+    const [url, init] = fetchMock.mock.calls[1]! as [string, RequestInit];
+    expect(url).toBe('https://api.abacatepay.com/v2/checkouts/create');
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      items: [{ id: 'prod_1', quantity: 1 }],
+      methods: ['CARD'],
+      externalId: ORDER,
+      card: { maxInstallments: 4 },
+    });
+  });
+
+  it('produto inexistente (404) → cria; corrida no create → busca de novo', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json({ data: null, success: false, error: 'Produto não encontrado.' }, 404),
+      )
+      .mockResolvedValueOnce(
+        json({ data: null, success: false, error: 'externalId já existe' }, 400),
+      )
+      .mockResolvedValueOnce(json(product()))
+      .mockResolvedValueOnce(json(checkout()));
+    await createCardCheckout(cardInput);
+    const urls = fetchMock.mock.calls.map((c) => new URL(String(c[0])).pathname);
+    expect(urls).toEqual([
+      '/v2/products/get',
+      '/v2/products/create',
+      '/v2/products/get',
+      '/v2/checkouts/create',
+    ]);
+  });
+
+  it.each([
+    ['valor diverge', checkout({ amount: 1 })],
+    ['outro pedido', checkout({ externalId: 'outro' })],
+    ['URL de outro host', checkout({ url: 'https://evil.dev/pay/x' })],
+    ['URL http', checkout({ url: `http://app.abacatepay.com/pay/${BILL}` })],
+    ['sem url', checkout({ url: undefined })],
+  ])('%s → provider_unavailable', async (_name, body) => {
+    fetchMock.mockResolvedValueOnce(json(product())).mockResolvedValueOnce(json(body));
+    await expectCode(createCardCheckout(cardInput), 'provider_unavailable');
+  });
+
+  it('produto com outro preço (editado no painel) → invalid_request, sem checkout', async () => {
+    fetchMock.mockResolvedValueOnce(json(product(100)));
+    await expectCode(createCardCheckout(cardInput), 'invalid_request');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('valida valor e parcelas antes da rede', async () => {
+    await expectCode(createCardCheckout({ ...cardInput, amountCents: 0 }), 'invalid_request');
+    await expectCode(createCardCheckout({ ...cardInput, maxInstallments: 13 }), 'invalid_request');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('mock E2E: aceita URL na origem do mock', async () => {
+    vi.stubEnv('ABACATEPAY_API_BASE_URL', 'http://127.0.0.1:4010/v2');
+    fetchMock
+      .mockResolvedValueOnce(json(product()))
+      .mockResolvedValueOnce(json(checkout({ url: `http://127.0.0.1:4010/pay/${BILL}` })));
+    expect((await createCardCheckout(cardInput)).url).toBe(`http://127.0.0.1:4010/pay/${BILL}`);
+  });
+
+  it('getCardCheckoutStatus → status, valores e externalId', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        data: { id: BILL, status: 'PAID', amount: 4990, paidAmount: 4990, externalId: ORDER },
+        success: true,
+        error: null,
+      }),
+    );
+    expect(await getCardCheckoutStatus(BILL)).toEqual({
+      billingId: BILL,
+      status: 'PAID',
+      amountCents: 4990,
+      paidAmountCents: 4990,
+      externalId: ORDER,
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      `https://api.abacatepay.com/v2/checkouts/get?id=${BILL}`,
+    );
+  });
+
+  it('getCardCheckoutStatus de outro checkout → provider_unavailable; 403 → unauthorized', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ data: { id: 'bill_outro', status: 'PAID' }, success: true, error: null }),
+    );
+    await expectCode(getCardCheckoutStatus(BILL), 'provider_unavailable');
+    fetchMock.mockResolvedValueOnce(json({ error: 'Insufficient permissions' }, 403));
+    await expectCode(getCardCheckoutStatus(BILL), 'unauthorized');
+  });
+
+  it('refundCardCheckout → POST /checkouts/refund; já reembolsado é sucesso', async () => {
+    fetchMock.mockResolvedValueOnce(json({ data: { id: 'tran_1' }, success: true, error: null }));
+    expect(await refundCardCheckout(BILL)).toEqual({ alreadyRefunded: false });
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://api.abacatepay.com/v2/checkouts/refund');
+    fetchMock.mockResolvedValueOnce(
+      json({ data: null, success: false, error: 'Esta cobrança já foi reembolsada.' }, 400),
+    );
+    expect(await refundCardCheckout(BILL)).toEqual({ alreadyRefunded: true });
+    fetchMock.mockResolvedValueOnce(
+      json({ data: null, success: false, error: 'INSUFFICIENT_FUNDS' }, 400),
+    );
+    await expectCode(refundCardCheckout(BILL), 'insufficient_funds');
   });
 });

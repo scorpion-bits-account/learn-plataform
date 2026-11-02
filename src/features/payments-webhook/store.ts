@@ -29,6 +29,8 @@ export interface WebhookOrder {
   provider: string;
   providerBillingId: string | null;
   amountCents: number;
+  /** `pix` | `card` (nulo só em venda manual). */
+  paymentMethod: Database['public']['Enums']['payment_method'] | null;
 }
 
 /**
@@ -101,7 +103,7 @@ export function createWebhookStore(client: ServiceClient = createServiceClient()
     async findOrder(orderId) {
       const { data, error } = await client
         .from('orders')
-        .select('id, status, provider, provider_billing_id, amount_cents')
+        .select('id, status, provider, provider_billing_id, amount_cents, payment_method')
         .eq('id', orderId)
         .maybeSingle();
       if (error) throw new WebhookTransientError('read order', codeOf(error));
@@ -112,6 +114,7 @@ export function createWebhookStore(client: ServiceClient = createServiceClient()
         provider: data.provider,
         providerBillingId: data.provider_billing_id,
         amountCents: data.amount_cents,
+        paymentMethod: data.payment_method,
       };
     },
 

@@ -6,6 +6,7 @@ import {
   eventResult,
   formatRemaining,
   myOrderRefundState,
+  paymentMethodLabel,
   refundWindowRemainingMs,
 } from './model';
 import type { MyOrder } from './model';
@@ -80,5 +81,14 @@ describe('eventResult', () => {
     expect(eventResult({ ...base, processingError: 'algo qualquer com cpf 123' }).label).toBe(
       'Erro de processamento',
     );
+  });
+});
+
+describe('paymentMethodLabel', () => {
+  it('PIX, cartão ou venda manual', () => {
+    expect(paymentMethodLabel('checkout', 'pix')).toBe('PIX');
+    expect(paymentMethodLabel('checkout', null)).toBe('PIX');
+    expect(paymentMethodLabel('checkout', 'card')).toBe('Cartão de crédito');
+    expect(paymentMethodLabel('manual', null)).toBe('Venda manual');
   });
 });

@@ -628,7 +628,7 @@ describe('reembolso e disputa', () => {
   });
 
   it('evento desconhecido → registrado como unsupported_event, 200', async () => {
-    const res = await run(payload('checkout.completed'));
+    const res = await run(payload('subscription.completed'));
     expect(res.body.result).toBe('unsupported_event');
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -654,6 +654,166 @@ describe('reembolso e disputa', () => {
     fetchMock.mockResolvedValueOnce(pixStatus('PAID'));
     const res = await run(payload('transparent.completed', { devMode: false }));
     expect(res.body.result).toBe('fulfilled');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cartão: checkout hospedado (PAY-007)
+// ---------------------------------------------------------------------------
+const CARD_BILLING = 'bill_abc123xyz';
+
+function seedCardOrder(over: Row = {}) {
+  seedOrder({ payment_method: 'card', provider_billing_id: CARD_BILLING, ...over });
+}
+
+function cardPayload(event: string, over: Record<string, unknown> = {}, checkout: Row = {}) {
+  return {
+    id: 'log_card_001',
+    event,
+    apiVersion: 2,
+    devMode: true,
+    data: {
+      checkout: {
+        id: CARD_BILLING,
+        externalId: ORDER_ID,
+        url: `https://app.abacatepay.com/pay/${CARD_BILLING}`,
+        amount: 4990,
+        paidAmount: 4990,
+        platformFee: 602,
+        frequency: 'ONE_TIME',
+        status: 'PAID',
+        methods: ['CARD'],
+        installmentsCount: 3,
+        ...checkout,
+      },
+      customer: {
+        id: 'cust_1',
+        name: 'Maria Santos',
+        email: 'maria@exemplo.com',
+        taxId: '123.***.***-**',
+      },
+      payerInformation: { method: 'CARD', CARD: { number: '4242', brand: 'VISA' } },
+      ...(event === 'checkout.disputed' ? { reason: 'requested_by_customer' } : {}),
+    },
+    ...over,
+  };
+}
+
+const checkoutStatus = (status: string, over: Row = {}) =>
+  new Response(
+    JSON.stringify({
+      data: {
+        id: CARD_BILLING,
+        externalId: ORDER_ID,
+        status,
+        amount: 4990,
+        paidAmount: status === 'PAID' ? 4990 : null,
+        ...over,
+      },
+      success: true,
+      error: null,
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  );
+
+describe('checkout.* (cartão)', () => {
+  it('checkout.completed → reconsulta checkouts/get PAID → fulfill_order com o bill_ do pedido', async () => {
+    seedCardOrder();
+    fetchMock.mockResolvedValueOnce(checkoutStatus('PAID'));
+    const res = await run(cardPayload('checkout.completed'));
+    expect(res).toEqual({ status: 200, body: { ok: true, result: 'fulfilled' } });
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      `https://api.abacatepay.com/v2/checkouts/get?id=${CARD_BILLING}`,
+    );
+    expect(fulfillCalls()).toEqual([
+      [
+        'fulfill_order',
+        {
+          p_order_id: ORDER_ID,
+          p_provider_billing_id: CARD_BILLING,
+          p_amount_cents: 4990,
+          p_event_id: 'log_card_001',
+        },
+      ],
+    ]);
+    expect(event('log_card_001')!.payload).toMatchObject({
+      data: { checkout: { id: CARD_BILLING, externalId: ORDER_ID, amount: 4990 } },
+    });
+    expect(JSON.stringify(event('log_card_001')!.payload)).not.toContain('4242');
+    expectNoDirectAccessWrites();
+  });
+
+  it('reconsulta PENDING → 503 (re-tentado), sem conceder', async () => {
+    seedCardOrder();
+    fetchMock.mockResolvedValueOnce(checkoutStatus('PENDING'));
+    const res = await run(cardPayload('checkout.completed'));
+    expect(res.status).toBe(503);
+    expect(fulfillCalls()).toHaveLength(0);
+  });
+
+  it('reconsulta com paidAmount ≠ pedido (ex.: cupom) → amount_mismatch, sem conceder', async () => {
+    seedCardOrder();
+    fetchMock.mockResolvedValueOnce(checkoutStatus('PAID', { paidAmount: 100 }));
+    const res = await run(cardPayload('checkout.completed'));
+    expect(res.body.result).toBe('amount_mismatch');
+    expect(fulfillCalls()).toHaveLength(0);
+  });
+
+  it('reconsulta de checkout de outro pedido → billing_mismatch', async () => {
+    seedCardOrder();
+    fetchMock.mockResolvedValueOnce(checkoutStatus('PAID', { externalId: OTHER_ORDER_ID }));
+    const res = await run(cardPayload('checkout.completed'));
+    expect(res.body.result).toBe('billing_mismatch');
+    expect(fulfillCalls()).toHaveLength(0);
+  });
+
+  it('REDEEMED (cupom 100%) não libera', async () => {
+    seedCardOrder();
+    fetchMock.mockResolvedValueOnce(checkoutStatus('REDEEMED', { paidAmount: 0 }));
+    const res = await run(cardPayload('checkout.completed'));
+    expect(res.body.result).not.toBe('fulfilled');
+    expect(fulfillCalls()).toHaveLength(0);
+  });
+
+  it('evento de checkout para pedido PIX (e vice-versa) → method_mismatch, sem reconsulta', async () => {
+    seedOrder();
+    const a = await run(cardPayload('checkout.completed'));
+    expect(a.body.result).toBe('method_mismatch');
+    orders.clear();
+    seedCardOrder();
+    const b = await run(payload('transparent.completed', { id: 'log_evt_x' }));
+    expect(b.body.result).toBe('method_mismatch');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fulfillCalls()).toHaveLength(0);
+  });
+
+  it('checkout.refunded e checkout.lost → reconsulta REFUNDED → refund_order', async () => {
+    seedCardOrder({ status: 'paid' });
+    fetchMock.mockResolvedValueOnce(checkoutStatus('REFUNDED'));
+    expect((await run(cardPayload('checkout.refunded'))).body.result).toBe('refunded');
+    seedCardOrder({ status: 'paid' });
+    fetchMock.mockResolvedValueOnce(checkoutStatus('REFUNDED'));
+    expect((await run(cardPayload('checkout.lost', { id: 'log_card_002' }))).body.result).toBe(
+      'refunded',
+    );
+    expect(refundCalls()).toHaveLength(2);
+  });
+
+  it('checkout.refunded com reconsulta ainda PAID → não revoga', async () => {
+    seedCardOrder({ status: 'paid' });
+    fetchMock.mockResolvedValueOnce(checkoutStatus('PAID'));
+    const res = await run(cardPayload('checkout.refunded'));
+    expect(res.body.result).toBe('provider_status_paid');
+    expect(refundCalls()).toHaveLength(0);
+  });
+
+  it('checkout.disputed → só registra e alerta chargeback', async () => {
+    seedCardOrder({ status: 'paid' });
+    const res = await run(cardPayload('checkout.disputed'));
+    expect(res.body.result).toBe('dispute_recorded');
+    expect(rpc).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(logs.some((l) => String(l[0]).includes('chargeback'))).toBe(true);
   });
 });
 

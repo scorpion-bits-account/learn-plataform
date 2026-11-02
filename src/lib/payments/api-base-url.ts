@@ -33,3 +33,31 @@ export function resolveAbacatePayBaseUrl(raw: string | undefined): string {
   if (raw === undefined || raw.trim() === '') return DEFAULT_ABACATEPAY_API_BASE_URL;
   return abacatePayBaseUrlSchema.parse(raw);
 }
+
+/** Host do checkout hospedado da AbacatePay (`https://app.abacatepay.com/pay/bill_…`). */
+export const ABACATEPAY_CHECKOUT_HOST = 'app.abacatepay.com';
+
+/**
+ * `true` se `value` é uma URL de checkout hospedado em que podemos fazer `redirect`
+ * (PAY-007): `https://app.abacatepay.com/pay/…`. Só quando a API aponta para o mock
+ * dos testes E2E (base diferente da real; nunca com chave de produção, ver `abacatepay.ts`),
+ * aceita também a mesma origem do mock. Sem credenciais, query de terceiros ou outro host.
+ */
+export function isAbacatePayCheckoutUrl(value: string, apiBaseUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.username || url.password || !url.pathname.startsWith('/pay/')) return false;
+  if (url.protocol === 'https:' && url.hostname === ABACATEPAY_CHECKOUT_HOST && !url.port) {
+    return true;
+  }
+  if (apiBaseUrl === DEFAULT_ABACATEPAY_API_BASE_URL) return false;
+  try {
+    return url.origin === new URL(apiBaseUrl).origin;
+  } catch {
+    return false;
+  }
+}

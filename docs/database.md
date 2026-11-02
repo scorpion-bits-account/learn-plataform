@@ -122,10 +122,12 @@ Nota: cursos gratuitos estão **fora do MVP** (não antecipamos `source='free'`)
 | currency | text default 'BRL' | |
 | status | order_status ('pending','paid','failed','expired','refunded','canceled') | |
 | provider | text default 'abacatepay' | `abacatepay` (checkout) ou `manual` (venda manual) |
-| provider_billing_id | text unique | id da cobrança (`pix_char_…`); nulo até a cobrança ser criada, depois imutável |
-| pix_br_code | text | PIX copia-e-cola (Checkout Transparente, `docs/payments.md`); nulo até a cobrança |
-| pix_br_code_base64 | text | imagem do QR; nulo até a cobrança |
-| expires_at | timestamptz | expiração da cobrança PIX |
+| payment_method | payment_method ('pix','card') | PAY-007. Obrigatório em `source='checkout'` (padrão `pix` por trigger se omitido), nulo em venda manual; imutável |
+| provider_billing_id | text unique | id da cobrança: `pix_char_…` (PIX) ou `bill_…` (checkout de cartão); nulo até a cobrança ser criada, depois imutável |
+| pix_br_code | text | PIX copia-e-cola (Checkout Transparente, `docs/payments.md`); nulo até a cobrança; sempre nulo no cartão |
+| pix_br_code_base64 | text | imagem do QR; nulo até a cobrança; sempre nulo no cartão |
+| checkout_url | text | PAY-007: URL do checkout hospedado (`https://app.abacatepay.com/pay/bill_…`; `http://` só em loopback para o mock E2E). Só em `card`; definida uma vez. O host exato é validado no servidor |
+| expires_at | timestamptz | PIX: expiração da cobrança. Cartão: fim da janela de reaproveitamento do checkout (1 h); o checkout em si não expira e, se pago depois, `fulfill_order` aceita `expired → paid` |
 | paid_at | timestamptz | obrigatório se status ∈ (paid, refunded) |
 | refund_requested_at | timestamptz | pedido de reembolso do aluno (até `paid_at + 7 dias`, validado na action); exige `paid_at` |
 | refunded_at | timestamptz | obrigatório se status = refunded |
@@ -148,7 +150,7 @@ PK `(user_id, lesson_id)`; `course_id` (denormalizado por trigger + FK composta 
 - **`lesson_materials` por tipo**: `video` exige `video_provider`+`video_id`; `text` exige `body` não vazio; `file` exige `storage_path` (único tipo com `file_name/file_size/mime_type`); `link` exige `external_url`. Campos de outros tipos devem ser nulos (ao trocar o tipo, a action limpa os campos antigos).
 - **Formatos defensivos**: `video_id` só `[A-Za-z0-9_-]` (com no máximo um `/`, ex.: Vimeo `id/hash`) — sem injeção na URL do embed; `external_url` só `http(s)://`; `avatar_url` só `https://`; `storage_path`/`cover_path` relativos ao bucket, sem `/` inicial, `..`, backslash ou caracteres de controle; `tax_id` 11 dígitos; `phone` 10–15 dígitos; slugs `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 100); títulos não vazios (≤ 200).
 - **Posições** `≥ 0` e `unique (parent, position) deferrable initially deferred` (também em `categories.position`).
-- **`orders`** (trigger `orders_guard_immutable`): `user_id`, `course_id`, `amount_cents`, `currency`, `source`, `provider`, `created_by` são imutáveis; `provider_billing_id` só pode ir de nulo para um valor. `currency = 'BRL'`, `amount_cents > 0`.
+- **`orders`** (trigger `orders_guard_immutable`): `user_id`, `course_id`, `amount_cents`, `currency`, `source`, `provider`, `payment_method`, `created_by` são imutáveis; `provider_billing_id` e `checkout_url` só podem ir de nulo para um valor. Checks PAY-007: `(source='checkout') = (payment_method is not null)`, cartão sem `pix_br_code*`, `checkout_url` só em cartão. `currency = 'BRL'`, `amount_cents > 0`.
 - **`enrollments`** (trigger `enrollments_guard`): nasce ativa; `purchase` só com pedido `paid` (então `fulfill_order` marca o pedido como pago **antes** de inserir a matrícula); a única alteração permitida é revogar; matrícula revogada é definitiva (novo acesso = nova linha, histórico preservado).
 ## 4. Funções
 Implementadas em `supabase/migrations/20261008000003_rls_functions.sql` (DB-003). Todas as `SECURITY DEFINER` têm `set search_path = ''`; toda função tem `revoke all ... from public, anon, authenticated` seguido de grants explícitos.

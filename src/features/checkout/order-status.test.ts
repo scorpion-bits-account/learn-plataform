@@ -7,8 +7,11 @@ const requireUser = vi.fn();
 vi.mock('@/lib/auth/dal', () => ({ requireUser: () => requireUser(), requireAdmin: vi.fn() }));
 vi.mock('@/features/catalog/queries', () => ({ getPublishedCourse: vi.fn() }));
 const getPixStatus = vi.fn();
+const getCardCheckoutStatus = vi.fn();
 vi.mock('@/lib/payments/abacatepay', () => ({
   getPixStatus: (id: string) => getPixStatus(id),
+  getCardCheckoutStatus: (id: string) => getCardCheckoutStatus(id),
+  createCardCheckout: vi.fn(),
   createPixCharge: vi.fn(),
   isPaymentsConfigured: vi.fn(),
   PaymentProviderError: class extends Error {},
@@ -45,6 +48,7 @@ beforeEach(() => {
   result = { data: null, error: null };
   nextResults.length = 0;
   getPixStatus.mockReset();
+  getCardCheckoutStatus.mockReset();
   rpc.mockReset();
   rpc.mockResolvedValue({ data: 'fulfilled', error: null });
   requireUser.mockReset();
@@ -155,5 +159,46 @@ describe('getOrderStatus — reconsulta ao provedor (plano B ao webhook)', () =>
     result = { data: { ...pending, status: 'paid' }, error: null };
     await getOrderStatus({ orderId: freshOrder() });
     expect(getPixStatus).not.toHaveBeenCalled();
+  });
+
+  describe('cartão', () => {
+    const card = { ...pending, provider_billing_id: 'bill_x', payment_method: 'card' };
+
+    it('PAID com valores e pedido iguais: reconsulta checkouts/get e concede', async () => {
+      const id = freshOrder();
+      result = { data: card, error: null };
+      getCardCheckoutStatus.mockResolvedValue({
+        status: 'PAID',
+        amountCents: 1000,
+        paidAmountCents: 1000,
+        externalId: id,
+      });
+      await getOrderStatus({ orderId: id });
+      expect(getCardCheckoutStatus).toHaveBeenCalledWith('bill_x');
+      expect(getPixStatus).not.toHaveBeenCalled();
+      expect(rpc).toHaveBeenCalledWith('fulfill_order', {
+        p_order_id: id,
+        p_provider_billing_id: 'bill_x',
+        p_amount_cents: 1000,
+      });
+    });
+
+    it.each([
+      ['paidAmount diferente', { paidAmountCents: 500 }],
+      ['checkout de outro pedido', { externalId: 'outro' }],
+      ['não pago', { status: 'REDEEMED' }],
+    ])('%s: não concede', async (_name, over) => {
+      const id = freshOrder();
+      result = { data: card, error: null };
+      getCardCheckoutStatus.mockResolvedValue({
+        status: 'PAID',
+        amountCents: 1000,
+        paidAmountCents: 1000,
+        externalId: id,
+        ...over,
+      });
+      await getOrderStatus({ orderId: id });
+      expect(rpc).not.toHaveBeenCalled();
+    });
   });
 });

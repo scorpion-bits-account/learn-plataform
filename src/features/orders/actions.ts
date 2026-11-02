@@ -3,7 +3,14 @@
 import { revalidatePath } from 'next/cache';
 
 import { ActionError, adminAction, userAction } from '@/lib/auth/actions';
-import { PaymentProviderError, getPixStatus, refundPixCharge } from '@/lib/payments/abacatepay';
+import {
+  PaymentProviderError,
+  getCardCheckoutStatus,
+  getPixStatus,
+  refundCardCheckout,
+  refundPixCharge,
+} from '@/lib/payments/abacatepay';
+import { providerVerdict } from '@/lib/payments/verdict';
 import { createClient } from '@/lib/supabase/server';
 
 import {
@@ -37,7 +44,7 @@ function providerMessage(error: unknown): string {
     case 'not_refundable':
       return 'A AbacatePay informa que esta transação não pode ser reembolsada.';
     case 'unauthorized':
-      return `A AbacatePay recusou a chave de API: verifique na Vercel a ABACATEPAY_API_KEY e as permissões (TRANSPARENT:READ, REFUND:CREATE). Detalhe: ${error.message}`;
+      return `A AbacatePay recusou a chave de API: verifique na Vercel a ABACATEPAY_API_KEY e as permissões (TRANSPARENT:READ, CHECKOUT:READ, REFUND:CREATE). Detalhe: ${error.message}`;
     case 'invalid_request':
       return `A AbacatePay recusou a requisição. Detalhe: ${error.message}`;
     case 'provider_unavailable':
@@ -51,7 +58,7 @@ async function readOrder(orderId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('orders')
-    .select('id, status, source, provider_billing_id, amount_cents')
+    .select('id, status, source, provider_billing_id, amount_cents, payment_method')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw new Error('Falha ao ler o pedido.');
@@ -61,25 +68,35 @@ async function readOrder(orderId: string) {
 
 /**
  * PAY-005 — "Reconsultar pagamento". Só concede acesso se o PROVEDOR disser
- * `PAID`; a concessão é `fulfill_order` (service role, módulo `service.ts`).
+ * `PAID` (PIX: `transparents/check`; cartão: `checkouts/get`, PAY-007) com os
+ * valores do pedido; a concessão é `fulfill_order` (service role, módulo `service.ts`).
  */
 export const recheckPayment = adminAction(orderActionSchema, async ({ orderId }) => {
   const order = await readOrder(orderId);
   const billingId = order.provider_billing_id;
   if (!billingId || !canRecheck({ status: order.status, providerBillingId: billingId })) {
     throw new ActionError(
-      'Só é possível reconsultar pedidos pendentes, expirados ou com falha que tenham cobrança PIX.',
+      'Só é possível reconsultar pedidos pendentes, expirados ou com falha que tenham cobrança na AbacatePay.',
     );
   }
 
   let remote;
   try {
-    remote = await getPixStatus(billingId);
+    remote =
+      order.payment_method === 'card'
+        ? await getCardCheckoutStatus(billingId)
+        : await getPixStatus(billingId);
   } catch (error) {
     throw new ActionError(providerMessage(error));
   }
 
-  if (remote.status !== 'PAID') {
+  const verdict = providerVerdict(remote, { id: order.id, amountCents: order.amount_cents });
+  if (verdict === 'amount_mismatch' || verdict === 'billing_mismatch') {
+    throw new ActionError(
+      'A AbacatePay informa um valor ou pedido diferente deste. Nenhum acesso foi liberado: confira a cobrança no painel da AbacatePay.',
+    );
+  }
+  if (verdict !== 'paid') {
     return {
       granted: false as const,
       message: `A AbacatePay informa que a cobrança está “${remote.status}”. Nenhum acesso foi liberado.`,
@@ -88,7 +105,7 @@ export const recheckPayment = adminAction(orderActionSchema, async ({ orderId })
 
   let result: string;
   try {
-    // O `check` nem sempre traz valor; sem ele, usa o do pedido (a cobrança foi criada com ele).
+    // A reconsulta nem sempre traz valor; sem ele, usa o do pedido (a cobrança foi criada com ele).
     result = await fulfillOrderAsService({
       orderId: order.id,
       billingId,
@@ -115,12 +132,15 @@ export const executeRefund = adminAction(orderActionSchema, async ({ orderId }) 
     !billingId ||
     !canRefund({ status: order.status, source: order.source, providerBillingId: billingId })
   ) {
-    throw new ActionError('Só é possível reembolsar pedidos pagos pelo checkout (PIX).');
+    throw new ActionError('Só é possível reembolsar pedidos pagos pelo checkout (PIX ou cartão).');
   }
 
   let alreadyRefunded: boolean;
   try {
-    ({ alreadyRefunded } = await refundPixCharge(billingId));
+    ({ alreadyRefunded } =
+      order.payment_method === 'card'
+        ? await refundCardCheckout(billingId)
+        : await refundPixCharge(billingId));
   } catch (error) {
     throw new ActionError(providerMessage(error));
   }

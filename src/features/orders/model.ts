@@ -4,6 +4,7 @@ import type { Database } from '@/types/database';
 import type { OrderStatus } from './schemas';
 
 export type OrderSource = Database['public']['Enums']['order_source'];
+export type PaymentMethod = Database['public']['Enums']['payment_method'];
 
 export const REFUND_WINDOW_DAYS = 7;
 const DAY_MS = 86_400_000;
@@ -31,10 +32,17 @@ export const SOURCE_LABELS: Record<OrderSource, string> = {
   manual: 'Venda manual',
 };
 
+/** Como foi pago: PIX, cartão (checkout) ou venda manual. */
+export function paymentMethodLabel(source: OrderSource, method: PaymentMethod | null): string {
+  if (source === 'manual') return 'Venda manual';
+  return method === 'card' ? 'Cartão de crédito' : 'PIX';
+}
+
 export type AdminOrderListItem = {
   id: string;
   status: OrderStatus;
   source: OrderSource;
+  paymentMethod: PaymentMethod | null;
   amountCents: number;
   createdAt: string;
   paidAt: string | null;
@@ -57,6 +65,7 @@ export type AdminOrderDetail = {
   id: string;
   status: OrderStatus;
   source: OrderSource;
+  paymentMethod: PaymentMethod | null;
   amountCents: number;
   createdAt: string;
   paidAt: string | null;
@@ -97,7 +106,7 @@ export function canRecheck(o: { status: OrderStatus; providerBillingId: string |
   return o.providerBillingId !== null && ['pending', 'expired', 'failed'].includes(o.status);
 }
 
-/** Admin pode reembolsar qualquer pedido pago com cobrança PIX (mesmo após os 7 dias). */
+/** Admin pode reembolsar qualquer pedido pago com cobrança na AbacatePay — PIX ou cartão (mesmo após os 7 dias). */
 export function canRefund(o: {
   status: OrderStatus;
   source: OrderSource;

@@ -205,11 +205,22 @@ export async function getOrder(orderId: string) {
   return must(
     await service()
       .from('orders')
-      .select('id, status, amount_cents, provider_billing_id, user_id, course_id')
+      .select('id, status, amount_cents, provider_billing_id, payment_method, user_id, course_id')
       .eq('id', orderId)
       .single(),
     'getOrder',
   );
+}
+
+/** Id do pedido que gravou esta cobrança/checkout (`null` se nenhum). */
+export async function findOrderIdByBilling(billingId: string): Promise<string | null> {
+  const { data, error } = await service()
+    .from('orders')
+    .select('id')
+    .eq('provider_billing_id', billingId)
+    .maybeSingle();
+  if (error) throw new Error(`findOrderIdByBilling: ${error.message}`);
+  return (data?.id as string | undefined) ?? null;
 }
 
 export async function getCourseByTitle(title: string) {

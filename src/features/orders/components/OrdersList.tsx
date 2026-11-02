@@ -4,7 +4,7 @@ import { Badge, Button, EmptyState, Input, Pagination, Table } from '@/component
 import type { TableColumn } from '@/components/ui';
 import { formatBRL, formatDate } from '@/features/students/format';
 
-import { STATUS_LABELS, STATUS_TONES } from '../model';
+import { STATUS_LABELS, STATUS_TONES, paymentMethodLabel } from '../model';
 import type { AdminOrderListItem } from '../model';
 import { ORDER_STATUSES, PAGE_SIZE } from '../schemas';
 import type { OrderListParams } from '../schemas';
@@ -149,7 +149,17 @@ export function OrdersList({
         </span>
       ),
     },
-    { key: 'amount', header: 'Valor', render: (o) => formatBRL(o.amountCents), align: 'end' },
+    {
+      key: 'amount',
+      header: 'Valor',
+      render: (o) => (
+        <span className={styles.cell}>
+          <span>{formatBRL(o.amountCents)}</span>
+          <span className={styles.dim}>{paymentMethodLabel(o.source, o.paymentMethod)}</span>
+        </span>
+      ),
+      align: 'end',
+    },
   ];
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

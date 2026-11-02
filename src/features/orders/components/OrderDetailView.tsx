@@ -5,6 +5,7 @@ import { formatBRL } from '@/features/students/format';
 
 import {
   SOURCE_LABELS,
+  paymentMethodLabel,
   STATUS_LABELS,
   STATUS_TONES,
   canRecheck,
@@ -44,11 +45,12 @@ export function OrderDetailView({
     ['Curso', order.courseTitle],
     ['Valor', formatBRL(order.amountCents)],
     ['Origem', SOURCE_LABELS[order.source]],
+    ['Forma de pagamento', paymentMethodLabel(order.source, order.paymentMethod)],
     ['Criado em', fmtTime(order.createdAt)],
     ['Pago em', fmtTime(order.paidAt)],
     ['Expira em', fmtTime(order.expiresAt)],
     [
-      'Cobrança AbacatePay',
+      order.paymentMethod === 'card' ? 'Checkout AbacatePay' : 'Cobrança AbacatePay',
       <span key="b" className={styles.mono}>
         {order.providerBillingId ?? '—'}
       </span>,

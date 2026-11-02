@@ -14,10 +14,14 @@ vi.mock('@/lib/auth/dal', () => ({
 // Provedor (a classe de erro é a real; só as chamadas HTTP são mockadas)
 const getPixStatus = vi.fn();
 const refundPixCharge = vi.fn();
+const getCardCheckoutStatus = vi.fn();
+const refundCardCheckout = vi.fn();
 vi.mock('@/lib/payments/abacatepay', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/payments/abacatepay')>()),
   getPixStatus: (...a: unknown[]) => getPixStatus(...a),
   refundPixCharge: (...a: unknown[]) => refundPixCharge(...a),
+  getCardCheckoutStatus: (...a: unknown[]) => getCardCheckoutStatus(...a),
+  refundCardCheckout: (...a: unknown[]) => refundCardCheckout(...a),
 }));
 import { PaymentProviderError } from '@/lib/payments/abacatepay';
 
@@ -211,6 +215,55 @@ describe('executeRefund', () => {
     orderRow = null;
     expect((await executeRefund({ orderId: ORDER })).ok).toBe(false);
     expect(refundPixCharge).not.toHaveBeenCalled();
+  });
+});
+
+describe('cartão (PAY-007)', () => {
+  const card = { ...pending, provider_billing_id: 'bill_abc', payment_method: 'card' };
+
+  it('reconsulta usa checkouts/get e concede com PAID e valores iguais', async () => {
+    orderRow = card;
+    getCardCheckoutStatus.mockResolvedValue({
+      status: 'PAID',
+      amountCents: 19_700,
+      paidAmountCents: 19_700,
+      externalId: ORDER,
+    });
+    fulfillOrderAsService.mockResolvedValue('fulfilled');
+    const res = await recheckPayment({ orderId: ORDER });
+    expect(res).toMatchObject({ ok: true, data: { granted: true } });
+    expect(getCardCheckoutStatus).toHaveBeenCalledWith('bill_abc');
+    expect(getPixStatus).not.toHaveBeenCalled();
+    expect(fulfillOrderAsService).toHaveBeenCalledWith({
+      orderId: ORDER,
+      billingId: 'bill_abc',
+      amountCents: 19_700,
+    });
+  });
+
+  it('reconsulta com paidAmount diferente (ou outro pedido) não concede', async () => {
+    orderRow = card;
+    for (const over of [{ paidAmountCents: 1 }, { externalId: 'outro' }]) {
+      getCardCheckoutStatus.mockResolvedValue({
+        status: 'PAID',
+        amountCents: 19_700,
+        paidAmountCents: 19_700,
+        externalId: ORDER,
+        ...over,
+      });
+      expect((await recheckPayment({ orderId: ORDER })).ok).toBe(false);
+    }
+    expect(fulfillOrderAsService).not.toHaveBeenCalled();
+  });
+
+  it('reembolso usa checkouts/refund e não altera o pedido', async () => {
+    orderRow = { ...card, status: 'paid' };
+    refundCardCheckout.mockResolvedValue({ alreadyRefunded: false });
+    const res = await executeRefund({ orderId: ORDER });
+    expect(res).toMatchObject({ ok: true });
+    expect(refundCardCheckout).toHaveBeenCalledWith('bill_abc');
+    expect(refundPixCharge).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
   });
 });
 

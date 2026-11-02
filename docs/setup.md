@@ -68,9 +68,35 @@ Guia passo a passo para o responsável do projeto. Leva ~30 min. Nenhuma chave s
 
 ## 3. AbacatePay
 
-1. Use o **Dev mode** e crie uma chave com as permissões `TRANSPARENT:CREATE`, `TRANSPARENT:READ` e `REFUND:CREATE` → coloque em `ABACATEPAY_API_KEY` na Vercel.
-2. **Webhook** (painel AbacatePay → Webhooks, no Dev mode): URL `https://<sua-url>/api/webhooks/abacatepay?webhookSecret=<o mesmo ABACATEPAY_WEBHOOK_SECRET>`, eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost`.
-3. Para produção: chave `abc_prod_…`, CNPJ verificado e site no ar com termos/privacidade (já existem em `/termos` e `/privacidade`).
+PIX (checkout transparente) e cartão de crédito (checkout hospedado da AbacatePay, PAY-007/ADR-022). Detalhes em `docs/payments.md` §10.
+
+1. **Chave de API** (painel → Integração → API → Criar chave). As permissões **não podem ser editadas** depois: se a chave atual não tiver todas abaixo, crie uma nova e troque `ABACATEPAY_API_KEY` na Vercel (e faça *Redeploy*).
+
+   | Permissão | Para quê |
+   |---|---|
+   | `TRANSPARENT:CREATE` | criar o PIX (e simular em Dev) |
+   | `TRANSPARENT:READ` | reconsultar o PIX |
+   | `CHECKOUT:CREATE` | criar o checkout de cartão |
+   | `CHECKOUT:READ` | reconsultar o checkout de cartão |
+   | `PRODUCT:READ` | achar o produto espelho do curso |
+   | `PRODUCT:CREATE` | criar o produto espelho do curso (um por curso e preço, automático) |
+   | `REFUND:CREATE` | botão "Reembolsar" do admin (PIX e cartão) |
+
+   Sem uma delas a AbacatePay responde `403 Insufficient permissions` e o admin vê "A AbacatePay recusou a chave de API".
+2. **Webhook** (painel AbacatePay → Webhooks): URL `https://<sua-url>/api/webhooks/abacatepay?webhookSecret=<o mesmo ABACATEPAY_WEBHOOK_SECRET>` com **os 8 eventos**:
+   - PIX: `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost`;
+   - cartão: `checkout.completed`, `checkout.refunded`, `checkout.disputed`, `checkout.lost`.
+
+   Se o webhook já existe só com os `transparent.*`, edite-o (ou recrie) para incluir os `checkout.*`.
+3. **Cartão em Dev mode:** escolha "Cartão de crédito" no checkout, clique em "Pagar com cartão" e, na página da AbacatePay, use `4242 4242 4242 4242` (validade futura, qualquer CVV). Recusas: `4000 0000 0000 0002` (emissor), `…0069` (expirado), `…0127` (CVV). Não há "simular pagamento" por API para o checkout de cartão: pague pela página.
+4. **Produção** (conta já aprovada):
+   1. Desligue o Dev mode no painel e crie a chave de **produção** (`abc_prod_…`) com as 7 permissões acima → `ABACATEPAY_API_KEY` na Vercel (*Production*) → *Redeploy*.
+   2. Crie o webhook **de novo no ambiente de produção** (webhooks de Dev não recebem eventos reais), com a URL de produção e os 8 eventos. Use um `ABACATEPAY_WEBHOOK_SECRET` novo e longo.
+   3. Confirme `ABACATEPAY_API_BASE_URL` **ausente** na Vercel (com chave `abc_prod_` o app recusa qualquer outra base).
+   4. Em **Perfil → Taxas** confira as taxas de cartão da conta (o parcelamento em até 12x é pago pela loja, ver ADR-022).
+   5. Mantenha saldo na AbacatePay para reembolsos (saem do saldo disponível).
+   6. Faça uma compra real de valor baixo com **PIX** e outra com **cartão**, confirme "Pagamento confirmado" e a matrícula; reembolse as duas pelo admin e confira que o acesso cai quando chega o `*.refunded`. Anote o que aparecer em `payment_events.processing_error` (fecha os "A CONFIRMAR" de `docs/payments.md` §10).
+   7. Site no ar com CNPJ no rodapé, contato, `/termos` e `/privacidade` (exigência da AbacatePay).
 
 ## 4. Teste de compra PIX ponta a ponta (Dev mode, QA-004)
 

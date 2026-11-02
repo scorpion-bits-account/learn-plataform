@@ -88,3 +88,49 @@ export async function postWebhook(
   });
   return { status: res.status, body: (await res.json()) as { ok: boolean; result: string } };
 }
+
+/**
+ * "Pagar com cartão" no checkout hospedado do mock (PAY-007), sem o navegador:
+ * o mesmo POST que o botão da página `/pay/<bill_…>` faz.
+ */
+export async function payCardCheckout(billingId: string): Promise<void> {
+  const env = loadE2eEnv();
+  const origin = new URL(env.mockBaseUrl).origin;
+  const res = await fetch(`${origin}/pay/${encodeURIComponent(billingId)}`, {
+    method: 'POST',
+    redirect: 'manual',
+  });
+  expect(res.status, 'pagamento no checkout do mock').toBe(303);
+}
+
+/** Entrega `checkout.<evento>` (cartão) ao webhook REAL do app (segredo na URL + HMAC). */
+export async function sendCheckoutWebhook(
+  orderId: string,
+  billingId: string,
+  event: 'checkout.completed' | 'checkout.refunded' = 'checkout.completed',
+) {
+  const env = loadE2eEnv();
+  const order = await getOrder(orderId);
+  const amount = order.amount_cents as number;
+  const raw = JSON.stringify({
+    id: `log_e2e_${event}_${orderId}`,
+    event,
+    apiVersion: 2,
+    devMode: true,
+    data: {
+      checkout: {
+        id: billingId,
+        externalId: orderId,
+        amount,
+        paidAmount: amount,
+        platformFee: 602,
+        frequency: 'ONE_TIME',
+        status: 'PAID',
+        methods: ['CARD'],
+        installmentsCount: null,
+      },
+      payerInformation: { method: 'CARD', CARD: { number: '4242', brand: 'VISA' } },
+    },
+  });
+  return postWebhook(raw, { secret: env.webhookSecret });
+}
