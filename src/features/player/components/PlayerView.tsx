@@ -23,6 +23,8 @@ export interface PlayerViewProps {
   lessonCompleted: boolean;
   outline: OutlineModuleView[];
   materials: PlayerMaterial[];
+  /** Materiais "em todas as aulas" de outras aulas do curso (seção "Materiais do curso"). */
+  courseMaterials?: PlayerMaterial[];
   /** A aula abre (acesso ao curso ou prévia)? Senão mostra o convite para o curso. */
   canOpen: boolean;
   hasAccess: boolean;
@@ -49,6 +51,7 @@ export function PlayerView({
   lessonCompleted,
   outline,
   materials,
+  courseMaterials = [],
   canOpen,
   hasAccess,
   prev,
@@ -90,7 +93,7 @@ export function PlayerView({
         </header>
 
         {canOpen ? (
-          <Materials materials={materials} />
+          <Materials materials={materials} courseMaterials={courseMaterials} />
         ) : (
           <EmptyState
             illustration={<LockIcon />}

@@ -222,6 +222,7 @@ export type Database = {
           lesson_id: string
           mime_type: string | null
           position: number
+          show_in_all_lessons: boolean
           storage_path: string | null
           title: string | null
           type: Database["public"]["Enums"]["material_type"]
@@ -240,6 +241,7 @@ export type Database = {
           lesson_id: string
           mime_type?: string | null
           position: number
+          show_in_all_lessons?: boolean
           storage_path?: string | null
           title?: string | null
           type: Database["public"]["Enums"]["material_type"]
@@ -258,6 +260,7 @@ export type Database = {
           lesson_id?: string
           mime_type?: string | null
           position?: number
+          show_in_all_lessons?: boolean
           storage_path?: string | null
           title?: string | null
           type?: Database["public"]["Enums"]["material_type"]

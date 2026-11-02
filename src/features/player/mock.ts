@@ -98,3 +98,21 @@ export const MOCK_MATERIALS: PlayerMaterial[] = [
     url: 'https://docs.godotengine.org/pt-br/stable/',
   },
 ];
+
+/** Materiais "em todas as aulas" vindos de outras aulas (seção "Materiais do curso"). */
+export const MOCK_COURSE_MATERIALS: PlayerMaterial[] = [
+  {
+    id: 'mock-course-link',
+    type: 'link',
+    title: 'Slides do curso',
+    url: 'https://docs.google.com/presentation/d/exemplo',
+  },
+  {
+    id: 'mock-course-file',
+    type: 'file',
+    title: 'Projeto Godot completo (com um nome bem comprido para testar o truncamento)',
+    fileName: 'projeto-completo-godot-4-com-todos-os-assets-e-cenas.zip',
+    fileSize: 18_874_368,
+    mimeType: 'application/zip',
+  },
+];

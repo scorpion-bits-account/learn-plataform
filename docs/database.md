@@ -94,6 +94,7 @@ Nota: cursos gratuitos estão **fora do MVP** (não antecipamos `source='free'`)
 | external_url | text | link |
 | video_provider | text check in ('youtube','vimeo','bunny') | type=video |
 | video_id | text | |
+| show_in_all_lessons | bool not null default false | ADMIN-010: o player mostra o material em todas as aulas do curso (a aula de origem continua sendo `lesson_id`). **O acesso não muda**: a RLS da aula de origem decide (material de aula não-prévia não aparece para visitante em aula de prévia; de aula de prévia é público). Índice parcial `(course_id) where show_in_all_lessons` |
 | check | | constraint por tipo: exige os campos do tipo **e proíbe os campos dos outros tipos** (ver §3.1) |
 
 ### enrollments

@@ -70,6 +70,7 @@ export function MaterialItem({
           <p className={styles.itemTitle}>
             <span className={styles.number}>{number}</span>{' '}
             <Badge tone={TONES[material.type]}>{MATERIAL_TYPE_LABELS[material.type]}</Badge>{' '}
+            {material.showInAllLessons ? <Badge tone="neutral">Todas as aulas</Badge> : null}{' '}
             {material.title?.trim() ? <span>{material.title}</span> : null}
           </p>
           <p className={styles.itemSummary}>{summary(material)}</p>

@@ -153,6 +153,7 @@ describe('createMaterial', () => {
       lesson_id: LESSON,
       course_id: COURSE,
       title: 'Intro',
+      show_in_all_lessons: false,
       type: 'video',
       video_provider: 'youtube',
       video_id: 'dQw4w9WgXcQ',
@@ -197,6 +198,19 @@ describe('createMaterial', () => {
       title: 'Docs',
       external_url: 'https://docs.dev/x',
     });
+  });
+
+  it('grava show_in_all_lessons (padrão false)', async () => {
+    await createMaterial({ type: 'text', lessonId: LESSON, body: 'x', showInAllLessons: true });
+    expect(find('lesson_materials', 'insert')?.arg).toMatchObject({ show_in_all_lessons: true });
+    calls.length = 0;
+    await createMaterial({ type: 'text', lessonId: LESSON, body: 'x' });
+    expect(find('lesson_materials', 'insert')?.arg).toMatchObject({ show_in_all_lessons: false });
+    calls.length = 0;
+    expect(
+      await createMaterial({ type: 'text', lessonId: LESSON, body: 'x', showInAllLessons: 'sim' }),
+    ).toMatchObject({ ok: false });
+    expect(find('lesson_materials', 'insert')).toBeUndefined();
   });
 
   it('primeiro material da aula fica na posição 0', async () => {
@@ -295,6 +309,19 @@ describe('updateMaterial', () => {
     expect(result).toMatchObject({ ok: true });
     expect(find('lesson_materials', 'update')?.arg).toEqual({ title: 'T', body: 'novo' });
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('show_in_all_lessons: grava quando enviado e não mexe quando ausente', async () => {
+    results['lesson_materials.select'] = current();
+    await updateMaterial({ type: 'text', id: MATERIAL, body: 'novo', showInAllLessons: true });
+    expect(find('lesson_materials', 'update')?.arg).toEqual({
+      title: null,
+      body: 'novo',
+      show_in_all_lessons: true,
+    });
+    calls.length = 0;
+    await updateMaterial({ type: 'text', id: MATERIAL, body: 'novo' });
+    expect(find('lesson_materials', 'update')?.arg).not.toHaveProperty('show_in_all_lessons');
   });
 
   it('vídeo: reparseia a URL no servidor', async () => {

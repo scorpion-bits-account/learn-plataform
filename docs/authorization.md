@@ -21,7 +21,7 @@ Anônimo: catálogo e páginas de curso publicados, ementa pública, materiais d
 | categories | SELECT | SELECT | ALL |
 | courses | SELECT `published` | SELECT `published` (+ cursos com acesso mesmo se `archived`; rascunho nunca, mesmo com atribuição) | ALL |
 | course_modules / lessons | SELECT se curso `published` (só metadados de ementa) | idem + cursos com acesso (`archived`) | ALL |
-| lesson_materials | SELECT se aula `is_preview` e curso publicado | SELECT se `has_course_access(course_id)` ou preview | ALL |
+| lesson_materials | SELECT se aula `is_preview` e curso publicado | SELECT se `has_course_access(course_id)` ou preview (a flag `show_in_all_lessons` não altera isso: vale a aula de origem) | ALL |
 | enrollments | — | SELECT próprias | SELECT todas; INSERT só `admin_grant` com `granted_by = auth.uid()`; UPDATE só colunas de revogação com `revoked_by = auth.uid()`; **sem DELETE** (histórico permanente). `purchase` só via `fulfill_order`/`admin_record_manual_sale` |
 | orders | — | SELECT próprios. **Sem escrita direta**: pedidos são criados/atualizados apenas pelo servidor (Server Action `startCheckout` com service client em módulo `server-only`, após `requireUser` + zod; preço lido do banco) e pelo webhook | SELECT todos; venda manual via `admin_record_manual_sale()` (Server Action admin). Pedido de reembolso do aluno via `request_refund()` (até 7 dias, antiabuso) |
 | payment_events | — | — | SELECT |

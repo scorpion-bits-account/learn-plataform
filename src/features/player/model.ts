@@ -273,6 +273,34 @@ export function mapMaterialRow(row: MaterialRow): PlayerMaterial | null {
   }
 }
 
+export type CourseMaterialRow = MaterialRow & { lesson_id: string; position: number };
+
+/**
+ * Materiais "em todas as aulas" (ADMIN-010) para a aula aberta: tira os da própria aula
+ * (já aparecem na lista dela, sem duplicar) e ordena por posição do módulo, da aula e do
+ * material, usando a ordem da ementa (`lessons` já vem ordenada). Aula fora da ementa vai
+ * para o fim, de forma estável.
+ */
+export function buildCourseMaterials(
+  rows: readonly CourseMaterialRow[],
+  lessons: readonly Pick<FlatLesson, 'id'>[],
+  currentLessonId: string,
+): PlayerMaterial[] {
+  const order = new Map(lessons.map((l, index) => [l.id, index]));
+  return rows
+    .filter((row) => row.lesson_id !== currentLessonId)
+    .map((row, arrival) => ({ row, arrival }))
+    .sort(
+      (a, b) =>
+        (order.get(a.row.lesson_id) ?? Number.MAX_SAFE_INTEGER) -
+          (order.get(b.row.lesson_id) ?? Number.MAX_SAFE_INTEGER) ||
+        a.row.position - b.row.position ||
+        a.arrival - b.arrival,
+    )
+    .map(({ row }) => mapMaterialRow(row))
+    .filter((m): m is PlayerMaterial => m !== null);
+}
+
 /** "{curso}/{aula}/{uuid}-{nome}" -> "{nome}". */
 function fileNameFromPath(storagePath: string): string {
   const last = storagePath.split('/').pop() ?? '';

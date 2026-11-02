@@ -6,6 +6,7 @@ import {
   MOCK_ALL_COMPLETED_IDS,
   MOCK_COMPLETED_IDS,
   MOCK_COURSE,
+  MOCK_COURSE_MATERIALS,
   MOCK_MATERIALS,
   MOCK_MODULES,
 } from '@/features/player/mock';
@@ -23,7 +24,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 /**
  * Vitrine do player (STUDENT-005/006) com dados fictícios; 404 em produção.
  * `?lesson=mock-lesson-N` escolhe a aula · `?state=preview` (sem compra: só prévias abrem;
- * `lesson=mock-lesson-3` mostra o convite ao curso) · `?state=empty` (aula sem materiais) ·
+ * `lesson=mock-lesson-3` mostra o convite ao curso) · `?state=empty` (aula sem materiais) · `?state=no-course-materials` (sem a seção "Materiais do curso") ·
  * `?state=done` (aula atual concluída, oferece a próxima) · `?state=course-done` (todas concluídas) ·
  * `?demo=fail` (o "Concluir" falha e faz rollback; padrão: simula sucesso).
  */
@@ -66,6 +67,9 @@ export default async function PlayerShowcasePage({ searchParams }: { searchParam
         hrefFor,
       })}
       materials={canOpen && state !== 'empty' ? MOCK_MATERIALS : []}
+      courseMaterials={
+        canOpen && state !== 'empty' && state !== 'no-course-materials' ? MOCK_COURSE_MATERIALS : []
+      }
       canOpen={canOpen}
       hasAccess={hasAccess}
       prev={link(neighbors.prev)}

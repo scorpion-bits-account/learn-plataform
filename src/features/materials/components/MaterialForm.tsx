@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useEffect, useId, useRef, useState } from 'react';
 
-import { Button, Field, Input, Select, Textarea, useToast } from '@/components/ui';
+import { Button, Field, Input, Select, Switch, Textarea, useToast } from '@/components/ui';
 import type { ActionResult } from '@/lib/auth/actions';
 
 import { createMaterial, discardUpload, updateMaterial } from '../actions';
@@ -67,6 +67,7 @@ export function MaterialForm({ courseId, lessonId, material, onDone, onCancel }:
       : (videoUrlFor(material?.videoProvider ?? null, material?.videoId ?? null) ?? ''),
   );
   const [body, setBody] = useState(material?.body ?? '');
+  const [showInAll, setShowInAll] = useState(material?.showInAllLessons ?? false);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState<Busy>({ state: 'idle' });
@@ -131,7 +132,7 @@ export function MaterialForm({ courseId, lessonId, material, onDone, onCancel }:
     }
 
     // 2) validação com os mesmos schemas da action, antes de gastar banda no upload.
-    const common = { title };
+    const common = { title, showInAllLessons: showInAll };
     const payload =
       type === 'video'
         ? { type, ...common, ...(urlLocked ? {} : { url }) }
@@ -387,6 +388,14 @@ export function MaterialForm({ courseId, lessonId, material, onDone, onCancel }:
           </div>
         </div>
       ) : null}
+
+      <Switch
+        label="Mostrar em todas as aulas do curso"
+        hint="O aluno vê este material em todas as aulas, em “Materiais do curso”. O acesso segue esta aula: se ela não for prévia gratuita, visitantes não o veem nas aulas de prévia; se for prévia, ele fica público."
+        checked={showInAll}
+        disabled={working}
+        onChange={(e) => setShowInAll(e.target.checked)}
+      />
 
       {errors.form ? (
         <p className={styles.error} role="alert">

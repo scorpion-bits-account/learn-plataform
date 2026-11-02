@@ -15,6 +15,7 @@ function row(over: Partial<MaterialRow> & { id: string; lesson_id: string }) {
     file_name: null,
     file_size: null,
     mime_type: null,
+    show_in_all_lessons: false,
     ...over,
   } as MaterialRow & { lesson_id: string };
 }
@@ -25,6 +26,11 @@ describe('toEditorMaterial', () => {
       row({ id: 'm1', lesson_id: 'l1', type: 'video', video_provider: 'youtube', video_id: 'abc' }),
     );
     expect(m).toMatchObject({ id: 'm1', type: 'video', videoProvider: 'youtube', videoId: 'abc' });
+    expect(m.showInAllLessons).toBe(false);
+    expect(
+      toEditorMaterial(row({ id: 'm2', lesson_id: 'l1', show_in_all_lessons: true }))
+        .showInAllLessons,
+    ).toBe(true);
     expect(m).not.toHaveProperty('storagePath');
     expect(m).not.toHaveProperty('lesson_id');
   });
