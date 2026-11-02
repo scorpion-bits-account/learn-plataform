@@ -3,16 +3,24 @@
 import { useId, useRef, useState } from 'react';
 
 import { Button, IconButton, Input, Switch } from '@/components/ui';
+import { MaterialsEditor } from '@/features/materials/components/MaterialsEditor';
+import { summarizeMaterials } from '@/features/materials/model';
+import type { EditorMaterial } from '@/features/materials/model';
 
 import { parseMinutes, secondsToMinutes } from '../constants';
 import type { CurriculumLesson } from '../queries';
-import { ArrowDownIcon, ArrowUpIcon, PencilIcon, TrashIcon } from './icons';
+import { ArrowDownIcon, ArrowUpIcon, ChevronIcon, PencilIcon, TrashIcon } from './icons';
 import styles from './CurriculumEditor.module.css';
 import { TitleForm } from './TitleForm';
 
 interface Props {
   courseId: string;
   lesson: CurriculumLesson;
+  /** Materiais da aula (carregados junto da ementa). */
+  materials: EditorMaterial[];
+  /** Painel de materiais aberto (estado na URL, controlado pelo editor). */
+  open: boolean;
+  onToggle: () => void;
   /** "1.2" */
   number: string;
   index: number;
@@ -102,6 +110,9 @@ function DurationField({
 export function LessonItem({
   courseId,
   lesson,
+  materials,
+  open,
+  onToggle,
   number,
   index,
   count,
@@ -113,6 +124,8 @@ export function LessonItem({
 }: Props) {
   const [renaming, setRenaming] = useState(false);
   const renameId = `rename-lesson-${lesson.id}`;
+  const panelId = useId();
+  const content = summarizeMaterials(materials);
 
   function closeRename() {
     setRenaming(false);
@@ -134,7 +147,21 @@ export function LessonItem({
           />
         ) : (
           <p className={styles.lessonTitle}>
-            <span className={styles.number}>{number}</span> {lesson.title}
+            <button
+              id={`toggle-lesson-${lesson.id}`}
+              type="button"
+              className={styles.toggle}
+              aria-expanded={open}
+              aria-controls={panelId}
+              onClick={onToggle}
+            >
+              <span className={styles.chevron} data-open={open} aria-hidden="true">
+                <ChevronIcon />
+              </span>
+              <span className={styles.lessonName}>
+                <span className={styles.number}>{number}</span> {lesson.title}
+              </span>
+            </button>
           </p>
         )}
         <div className={styles.actions}>
@@ -182,14 +209,29 @@ export function LessonItem({
           checked={lesson.isPreview}
           onChange={(e) => onPreview(e.target.checked)}
         />
+        <p className={styles.contentSummary} data-empty={content === null}>
+          {content ?? 'Sem conteúdo ainda'}
+        </p>
         <Button
-          variant="ghost"
+          variant={open ? 'secondary' : content === null ? 'primary' : 'ghost'}
           size="sm"
-          href={`/admin/cursos/${courseId}/aulas/${lesson.id}`}
-          aria-label={`Materiais da aula "${lesson.title}" (${lesson.materialCount})`}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={`Materiais da aula "${lesson.title}" (${materials.length})`}
+          onClick={onToggle}
         >
-          {`Materiais (${lesson.materialCount})`}
+          {open ? 'Fechar materiais' : `Materiais (${materials.length})`}
         </Button>
+      </div>
+      <div id={panelId} className={styles.lessonPanel} hidden={!open}>
+        {open ? (
+          <MaterialsEditor
+            courseId={courseId}
+            lessonId={lesson.id}
+            materials={materials}
+            headingLevel={4}
+          />
+        ) : null}
       </div>
     </li>
   );

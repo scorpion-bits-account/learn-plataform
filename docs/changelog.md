@@ -5,6 +5,7 @@ Uma linha por tarefa concluída: resumo, decisões, arquivos. Mais recente prime
 
 | data | tarefa | agente | resultado | notas |
 |---|---|---|---|---|
+| 2026-11-02 | ADMIN-009 | A05 (Sonnet 5.5) | DONE | Feedback do produto ("telas diferentes"): aulas expandem inline na Ementa com o `MaterialsEditor`; materiais do curso numa consulta; resumo por aula ("1 vídeo · 1 texto" / "Sem conteúdo ainda"); aula aberta em `?aula=`; aula nova abre expandida; rota antiga redireciona. E2E atualizado. 740 testes. Aprovado. |
 | 2026-11-02 | Lista de cursos (admin) | orquestrador | DONE | Produto não achava como editar curso existente: título já era link mas não parecia. Coluna de ações com "Editar" e "Aulas" (→ `?tab=syllabus`) por curso; título em ciano com sublinhado no hover. E2E: passo "curso publicado continua editável pela lista". |
 | 2026-10-09 | Mascote animado | orquestrador | DONE | Pedido do produto (logo borrada): `logo-anim.webm` do site recortado e reencodado (4 MB→1 MB, 640x838, VP9+alpha, sem áudio) + poster 2x do quadro 0. `HeroMascot` toca o vídeo só onde há alpha em WebM (critério do site da marca); iPhone/Safari, modo leve, saveData e 2g ficam no poster. Pausa fora da tela. |
 | 2026-10-09 | Aprovações do produto | produto | DONE | Visual (componentes isométricos e telas) aprovado; Termos/Privacidade e `docs/legal-review.md` aprovados. Pendente do produto: AbacatePay produção, Secure password change, rate limit (agendados). |
