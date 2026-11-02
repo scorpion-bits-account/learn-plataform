@@ -10,6 +10,7 @@ import { CourseForm } from '@/features/courses/components/CourseForm';
 import { StatusControl } from '@/features/courses/components/StatusControl';
 import { getAdminCourse, listCategories } from '@/features/courses/queries';
 import { formatCentsForInput } from '@/features/courses/schemas';
+import { parseLessonParam } from '@/features/curriculum/expansion';
 import { SyllabusPanel } from '@/features/curriculum/components/SyllabusPanel';
 import { parseListParams } from '@/features/students/schemas';
 import { getCoverPublicUrl } from '@/features/materials/storage';
@@ -23,11 +24,13 @@ export default async function EditCoursePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; q?: string; pagina?: string }>;
+  searchParams: Promise<{ tab?: string; aula?: string | string[]; q?: string; pagina?: string }>;
 }) {
-  const [{ id }, { tab, ...listRaw }] = await Promise.all([params, searchParams]);
+  const [{ id }, { tab, aula, ...listRaw }] = await Promise.all([params, searchParams]);
   const [course, categories] = await Promise.all([getAdminCourse(id), listCategories()]);
   if (!course) notFound();
+
+  const openLessonId = parseLessonParam(aula);
 
   const info = (
     <div className={styles.layout}>
@@ -69,7 +72,7 @@ export default async function EditCoursePage({
         </div>
       }
     >
-      <SyllabusPanel courseId={course.id} />
+      <SyllabusPanel courseId={course.id} openLessonId={openLessonId} />
     </Suspense>
   );
 
@@ -98,7 +101,9 @@ export default async function EditCoursePage({
       <h1 className={styles.title}>{course.title}</h1>
       <Tabs
         label="Seções do curso"
-        defaultValue={tab === 'syllabus' || tab === 'students' ? tab : 'info'}
+        defaultValue={
+          tab === 'syllabus' || tab === 'students' ? tab : openLessonId ? 'syllabus' : 'info'
+        }
         items={[
           { value: 'info', label: 'Informações', panel: info },
           { value: 'syllabus', label: 'Ementa', panel: syllabus },

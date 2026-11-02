@@ -85,7 +85,8 @@ jobs:
   e2e:
     name: E2E (Playwright)
     needs: ci
-    runs-on: ubuntu-latest
+    # Fixado: o Playwright 1.56 ainda não instala navegadores no ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout

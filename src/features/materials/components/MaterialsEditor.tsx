@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useOptimistic, useRef, useState, useTransition } from 'react';
+import { useId, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from 'react';
 
 import { Button, Dialog, EmptyState, useToast } from '@/components/ui';
 import { moveItem } from '@/features/curriculum/order';
@@ -16,6 +16,8 @@ interface Props {
   courseId: string;
   lessonId: string;
   materials: EditorMaterial[];
+  /** Nível dos títulos internos (3 na tela da aula; 4 dentro da Ementa). */
+  headingLevel?: 3 | 4;
 }
 
 function reduce(materials: EditorMaterial[], ids: string[]): EditorMaterial[] {
@@ -28,7 +30,14 @@ function reduce(materials: EditorMaterial[], ids: string[]): EditorMaterial[] {
  * clique e volta sozinha, com toast, se a action falhar. Criar, editar e excluir esperam o
  * servidor e atualizam por revalidação.
  */
-export function MaterialsEditor({ courseId, lessonId, materials: initial }: Props) {
+export function MaterialsEditor({
+  courseId,
+  lessonId,
+  materials: initial,
+  headingLevel = 3,
+}: Props) {
+  const Heading = `h${headingLevel}` as const;
+  const headingId = useId();
   const { toast } = useToast();
   const [materials, applyOrder] = useOptimistic(initial, reduce);
   const [, startTransition] = useTransition();
@@ -124,7 +133,7 @@ export function MaterialsEditor({ courseId, lessonId, materials: initial }: Prop
 
       {materials.length === 0 ? (
         <EmptyState
-          headingLevel={3}
+          headingLevel={headingLevel}
           title="Esta aula ainda não tem materiais"
           description="Adicione um vídeo, texto, arquivo ou link no formulário abaixo."
         />
@@ -149,10 +158,10 @@ export function MaterialsEditor({ courseId, lessonId, materials: initial }: Prop
         </ol>
       )}
 
-      <section className={styles.add} aria-labelledby="add-material-heading">
-        <h3 id="add-material-heading" className={styles.addHeading}>
+      <section className={styles.add} aria-labelledby={headingId}>
+        <Heading id={headingId} className={styles.addHeading}>
           Novo material
-        </h3>
+        </Heading>
         <LazyMaterialForm
           key={formKey}
           courseId={courseId}

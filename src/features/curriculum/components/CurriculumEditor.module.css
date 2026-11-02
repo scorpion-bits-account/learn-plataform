@@ -121,6 +121,34 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+.lessonTitle .toggle {
+  gap: var(--space-2);
+  font-weight: 500;
+}
+.lessonName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.contentSummary {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--s--1);
+}
+.contentSummary[data-empty='true'] {
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--r-sm);
+  background: var(--tint-amber);
+  color: var(--warning);
+  font-weight: 600;
+}
+.lessonPanel {
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hair);
+}
+.lessonPanel[hidden] {
+  display: none;
+}
 .lessonMeta {
   display: flex;
   flex-wrap: wrap;

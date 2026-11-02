@@ -3,6 +3,7 @@
 import { useLayoutEffect, useOptimistic, useRef, useState, useTransition } from 'react';
 
 import { Button, Dialog, EmptyState, useToast } from '@/components/ui';
+import type { EditorMaterial } from '@/features/materials/model';
 import type { ActionResult } from '@/lib/auth/actions';
 
 import {
@@ -17,6 +18,7 @@ import {
   setLessonDuration,
   setLessonPreview,
 } from '../actions';
+import { toggleLesson, withOpenLesson } from '../expansion';
 import { moveItem } from '../order';
 import type { CurriculumModule } from '../queries';
 import styles from './CurriculumEditor.module.css';
@@ -64,6 +66,10 @@ function plural(n: number, one: string, many: string): string {
 interface Props {
   courseId: string;
   modules: CurriculumModule[];
+  /** Materiais de todas as aulas do curso, por `lessonId`. */
+  materials: Record<string, EditorMaterial[]>;
+  /** Aula aberta na URL (`?aula=`) ao carregar a página. */
+  initialOpenLessonId?: string | null;
 }
 
 /**
@@ -71,10 +77,16 @@ interface Props {
  * a tela muda no clique e volta sozinha, com toast, se a action falhar. Criar,
  * renomear, excluir e salvar duração esperam o servidor e atualizam via revalidação.
  */
-export function CurriculumEditor({ courseId, modules: initial }: Props) {
+export function CurriculumEditor({
+  courseId,
+  modules: initial,
+  materials,
+  initialOpenLessonId = null,
+}: Props) {
   const { toast } = useToast();
   const [modules, apply] = useOptimistic(initial, reduce);
   const [, startTransition] = useTransition();
+  const [openLessonId, setOpenLessonId] = useState<string | null>(initialOpenLessonId);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [announcement, setAnnouncement] = useState('');
   const [target, setTarget] = useState<Target | null>(null);
@@ -160,6 +172,16 @@ export function CurriculumEditor({ courseId, modules: initial }: Props) {
     });
   }
 
+  /** Abre/fecha a aula e espelha na URL sem navegar (sobrevive a recarregar e a salvar). */
+  function showLesson(lessonId: string | null) {
+    setOpenLessonId(lessonId);
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${withOpenLesson(window.location.search, lessonId)}`,
+    );
+  }
+
   function toggleOpen(id: string) {
     setClosed((current) => {
       const next = new Set(current);
@@ -197,6 +219,7 @@ export function CurriculumEditor({ courseId, modules: initial }: Props) {
       }
       setTarget(null);
       setDeleteError(null);
+      if (current.kind === 'lesson' && current.id === openLessonId) showLesson(null);
       toast({
         tone: 'success',
         title: current.kind === 'module' ? 'Módulo excluído' : 'Aula excluída',
@@ -246,9 +269,15 @@ export function CurriculumEditor({ courseId, modules: initial }: Props) {
               onMove={moveModule}
               onRename={async (title) => messageOf(await renameModule({ id: module.id, title }))}
               onDelete={() => setTarget({ kind: 'module', id: module.id })}
-              onAddLesson={async (title) =>
-                messageOf(await createLesson({ moduleId: module.id, title }))
-              }
+              materials={materials}
+              openLessonId={openLessonId}
+              onToggleLesson={(lessonId) => showLesson(toggleLesson(openLessonId, lessonId))}
+              onAddLesson={async (title) => {
+                const result = await createLesson({ moduleId: module.id, title });
+                // A aula nova já abre expandida para receber o conteúdo.
+                if (result.ok) showLesson(result.data.id);
+                return messageOf(result);
+              }}
               onMoveLesson={(i, delta) => moveLesson(module, i, delta)}
               onRenameLesson={async (id, title) => messageOf(await renameLesson({ id, title }))}
               onPreview={togglePreview}

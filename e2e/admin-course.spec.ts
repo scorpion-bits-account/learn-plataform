@@ -44,15 +44,34 @@ test('admin cria curso, módulo, aula com texto, envia capa e publica; aparece n
     await expectNoHorizontalOverflow(page, 'ementa');
   });
 
-  await test.step('adiciona material de texto à aula', async () => {
-    await page.getByRole('link', { name: `Materiais da aula "${lessonTitle}" (0)` }).click();
-    await expect(page.getByRole('heading', { level: 1, name: lessonTitle })).toBeVisible();
+  await test.step('a aula nova já abre na ementa; adiciona o material de texto ali mesmo', async () => {
+    // Criar a aula a abre expandida (estado na URL), sem sair da Ementa.
+    await expect(page).toHaveURL(/tab=syllabus&aula=[0-9a-f-]{36}/);
+    const toggle = page.getByRole('button', { name: `Materiais da aula "${lessonTitle}" (0)` });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText('Sem conteúdo ainda')).toBeVisible();
+
     await page.getByLabel('Tipo de material').selectOption({ label: 'Texto' });
     await page.getByLabel(/^Texto \(markdown\)/).fill(`${lessonText}\n\n## Bem-vindo`);
     await page.getByRole('button', { name: 'Adicionar material' }).click();
     await expect(page.getByRole('list', { name: 'Materiais da aula' })).toBeVisible();
     await expect(page.getByText(lessonText).first()).toBeVisible();
-    await expectNoHorizontalOverflow(page, 'materiais da aula');
+    // A ementa reflete na hora: contador e resumo.
+    await expect(
+      page.getByRole('button', { name: `Materiais da aula "${lessonTitle}" (1)` }),
+    ).toBeVisible();
+    await expect(page.getByText('1 texto', { exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page, 'materiais da aula na ementa');
+  });
+
+  await test.step('a aula aberta sobrevive a recarregar; fechar remove da URL', async () => {
+    await page.reload();
+    const toggle = page.getByRole('button', { name: `Materiais da aula "${lessonTitle}" (1)` });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText(lessonText).first()).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page).not.toHaveURL(/aula=/);
   });
 
   await test.step('envia a capa e salva', async () => {

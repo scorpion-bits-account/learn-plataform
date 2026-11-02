@@ -4,6 +4,8 @@ import { useId, useState } from 'react';
 
 import { IconButton } from '@/components/ui';
 
+import type { EditorMaterial } from '@/features/materials/model';
+
 import type { CurriculumModule } from '../queries';
 import { ArrowDownIcon, ArrowUpIcon, ChevronIcon, PencilIcon, TrashIcon } from './icons';
 import styles from './CurriculumEditor.module.css';
@@ -13,6 +15,9 @@ import { TitleForm } from './TitleForm';
 interface Props {
   courseId: string;
   module: CurriculumModule;
+  materials: Record<string, EditorMaterial[]>;
+  openLessonId: string | null;
+  onToggleLesson: (lessonId: string) => void;
   index: number;
   count: number;
   open: boolean;
@@ -31,6 +36,9 @@ interface Props {
 export function ModuleItem({
   courseId,
   module,
+  materials,
+  openLessonId,
+  onToggleLesson,
   index,
   count,
   open,
@@ -129,6 +137,9 @@ export function ModuleItem({
                 key={lesson.id}
                 courseId={courseId}
                 lesson={lesson}
+                materials={materials[lesson.id] ?? []}
+                open={openLessonId === lesson.id}
+                onToggle={() => onToggleLesson(lesson.id)}
                 number={`${index + 1}.${i + 1}`}
                 index={i}
                 count={lessonCount}
