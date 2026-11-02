@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useOptimistic, useRef, useState, useTransition } from 'react';
+import { useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from 'react';
 
 import { Button, Dialog, EmptyState, useToast } from '@/components/ui';
 import type { EditorMaterial } from '@/features/materials/model';
@@ -18,7 +18,7 @@ import {
   setLessonDuration,
   setLessonPreview,
 } from '../actions';
-import { toggleLesson, withOpenLesson } from '../expansion';
+import { LESSON_PARAM, toggleLesson, withOpenLesson } from '../expansion';
 import { moveItem } from '../order';
 import type { CurriculumModule } from '../queries';
 import styles from './CurriculumEditor.module.css';
@@ -172,15 +172,22 @@ export function CurriculumEditor({
     });
   }
 
-  /** Abre/fecha a aula e espelha na URL sem navegar (sobrevive a recarregar e a salvar). */
+  /** Abre/fecha a aula; a URL é espelhada pelo efeito abaixo. */
   function showLesson(lessonId: string | null) {
     setOpenLessonId(lessonId);
-    window.history.replaceState(
-      window.history.state,
-      '',
-      `${window.location.pathname}${withOpenLesson(window.location.search, lessonId)}`,
-    );
   }
+
+  // Espelha a aula aberta na URL sem navegar (sobrevive a recarregar e a salvar).
+  // Roda em efeito passivo, a cada commit de dados do servidor: o roteador do Next
+  // regrava a URL (useInsertionEffect) com o endereço de antes de uma Server Action
+  // (ex.: criar aula), o que apagaria `?aula=`; reaplicar aqui, depois dele, vence.
+  useEffect(() => {
+    const search = window.location.search;
+    // Só mexe na URL quando a aula aberta difere da que ela mostra (não toca a aba à toa).
+    if ((new URLSearchParams(search).get(LESSON_PARAM) ?? null) === openLessonId) return;
+    const wanted = withOpenLesson(search, openLessonId);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${wanted}`);
+  }, [openLessonId, initial, materials]);
 
   function toggleOpen(id: string) {
     setClosed((current) => {
