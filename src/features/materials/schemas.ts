@@ -245,6 +245,9 @@ const requiredTitle = z
   .min(1, 'Informe o título.')
   .max(TITLE_MAX, `No máximo ${TITLE_MAX} caracteres.`);
 
+/** "Mostrar em todas as aulas do curso" (ADMIN-010). */
+const showInAll = z.boolean();
+
 const videoUrl = z
   .string()
   .trim()
@@ -291,13 +294,32 @@ export const uploadedFileSchema = z.object({
 export type UploadedFile = z.infer<typeof uploadedFileSchema>;
 
 export const createMaterialSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('video'), lessonId: id, title: optionalTitle, url: videoUrl }),
-  z.object({ type: z.literal('text'), lessonId: id, title: optionalTitle, body }),
-  z.object({ type: z.literal('link'), lessonId: id, title: requiredTitle, url: linkUrl }),
+  z.object({
+    type: z.literal('video'),
+    lessonId: id,
+    title: optionalTitle,
+    showInAllLessons: showInAll.default(false),
+    url: videoUrl,
+  }),
+  z.object({
+    type: z.literal('text'),
+    lessonId: id,
+    title: optionalTitle,
+    showInAllLessons: showInAll.default(false),
+    body,
+  }),
+  z.object({
+    type: z.literal('link'),
+    lessonId: id,
+    title: requiredTitle,
+    showInAllLessons: showInAll.default(false),
+    url: linkUrl,
+  }),
   z.object({
     type: z.literal('file'),
     lessonId: id,
     title: optionalTitle,
+    showInAllLessons: showInAll.default(false),
     file: uploadedFileSchema,
   }),
 ]);
@@ -309,15 +331,31 @@ export const updateMaterialSchema = z.discriminatedUnion('type', [
     type: z.literal('video'),
     id,
     title: optionalTitle,
+    /** Ausente = mantém o valor atual. */
+    showInAllLessons: showInAll.optional(),
     /** Ausente = mantém o vídeo atual (ex.: provedor sem URL pública). */
     url: videoUrl.optional(),
   }),
-  z.object({ type: z.literal('text'), id, title: optionalTitle, body }),
-  z.object({ type: z.literal('link'), id, title: requiredTitle, url: linkUrl }),
+  z.object({
+    type: z.literal('text'),
+    id,
+    title: optionalTitle,
+    showInAllLessons: showInAll.optional(),
+    body,
+  }),
+  z.object({
+    type: z.literal('link'),
+    id,
+    title: requiredTitle,
+    showInAllLessons: showInAll.optional(),
+    url: linkUrl,
+  }),
   z.object({
     type: z.literal('file'),
     id,
     title: optionalTitle,
+    /** Ausente = mantém o valor atual. */
+    showInAllLessons: showInAll.optional(),
     /** Presente = troca o arquivo (o objeto antigo é removido). */
     file: uploadedFileSchema.optional(),
   }),

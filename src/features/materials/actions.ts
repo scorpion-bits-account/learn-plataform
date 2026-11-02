@@ -95,6 +95,7 @@ export const createMaterial = adminAction(createMaterialSchema, async (input) =>
     // O banco sobrescreve com o course_id da aula (trigger); enviamos o mesmo valor.
     course_id: lesson.course_id,
     title: input.title,
+    show_in_all_lessons: input.showInAllLessons,
   };
 
   let row: Omit<Insert, 'position'>;
@@ -154,6 +155,7 @@ export const updateMaterial = adminAction(updateMaterialSchema, async (input) =>
   }
 
   const patch: Patch = { title: input.title };
+  if (input.showInAllLessons !== undefined) patch.show_in_all_lessons = input.showInAllLessons;
   let oldPath: string | null = null;
 
   switch (input.type) {

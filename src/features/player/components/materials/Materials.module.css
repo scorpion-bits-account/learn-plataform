@@ -2,6 +2,22 @@
   display: grid;
   gap: var(--space-6);
 }
+.courseSection {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--hair);
+}
+.courseHeading {
+  font-size: var(--s-1);
+}
+.courseHint {
+  margin-top: calc(var(--space-2) * -1);
+  color: var(--text-dim);
+  font-size: var(--s--1);
+}
 .material {
   display: grid;
   gap: var(--space-3);

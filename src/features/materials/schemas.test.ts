@@ -255,6 +255,33 @@ describe('createMaterialSchema', () => {
   });
 });
 
+describe('showInAllLessons', () => {
+  it('create: padrão false, aceita boolean e recusa outros tipos', () => {
+    const base = { type: 'text', lessonId: LESSON, body: 'x' };
+    expect(createMaterialSchema.parse(base)).toMatchObject({ showInAllLessons: false });
+    expect(createMaterialSchema.parse({ ...base, showInAllLessons: true })).toMatchObject({
+      showInAllLessons: true,
+    });
+    expect(createMaterialSchema.safeParse({ ...base, showInAllLessons: 'true' }).success).toBe(
+      false,
+    );
+  });
+
+  it('update: ausente continua ausente (mantém o valor atual)', () => {
+    const parsed = updateMaterialSchema.parse({ type: 'text', id: LESSON, body: 'x' });
+    expect(parsed.showInAllLessons).toBeUndefined();
+    expect(
+      updateMaterialSchema.parse({
+        type: 'link',
+        id: LESSON,
+        title: 't',
+        url: 'https://a.dev',
+        showInAllLessons: false,
+      }).showInAllLessons,
+    ).toBe(false);
+  });
+});
+
 describe('updateMaterialSchema', () => {
   it('vídeo sem URL mantém o vídeo; arquivo sem file mantém o arquivo', () => {
     expect(updateMaterialSchema.safeParse({ type: 'video', id: LESSON, title: 'x' }).success).toBe(

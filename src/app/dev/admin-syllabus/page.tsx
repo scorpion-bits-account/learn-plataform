@@ -67,6 +67,7 @@ function material(
     fileName: null,
     fileSize: null,
     mimeType: null,
+    showInAllLessons: false,
     ...over,
   };
 }

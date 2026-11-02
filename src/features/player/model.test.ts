@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { OutlineModule } from '@/features/catalog/model';
 
 import {
+  buildCourseMaterials,
   buildOutlineView,
   buildVideoEmbed,
   canOpenLesson,
@@ -16,7 +17,7 @@ import {
   shortcutAction,
   tokenizeInline,
 } from './model';
-import type { MaterialRow, ShortcutEventLike } from './model';
+import type { CourseMaterialRow, MaterialRow, ShortcutEventLike } from './model';
 
 const lesson = (id: string, isPreview = false) => ({
   id,
@@ -291,6 +292,59 @@ describe('mapMaterialRow', () => {
     expect(
       mapMaterialRow({ ...base, type: 'link', title: null, external_url: 'https://a.dev' }),
     ).toMatchObject({ type: 'link', title: null, url: 'https://a.dev/' });
+  });
+});
+
+describe('buildCourseMaterials', () => {
+  const lessons = [{ id: 'a1' }, { id: 'a2' }, { id: 'b1' }];
+  const row = (id: string, lessonId: string, position: number, over: Partial<MaterialRow> = {}) =>
+    ({
+      id,
+      lesson_id: lessonId,
+      position,
+      type: 'link',
+      title: id,
+      body: null,
+      external_url: 'https://exemplo.com',
+      video_provider: null,
+      video_id: null,
+      file_name: null,
+      file_size: null,
+      mime_type: null,
+      storage_path: null,
+      ...over,
+    }) as CourseMaterialRow;
+
+  it('ordena por aula na ementa (módulo, depois aula) e por posição do material', () => {
+    const result = buildCourseMaterials(
+      [row('m-b1', 'b1', 0), row('m-a2-1', 'a2', 1), row('m-a2-0', 'a2', 0), row('m-a1', 'a1', 5)],
+      lessons,
+      'zzz',
+    );
+    expect(result.map((m) => m.id)).toEqual(['m-a1', 'm-a2-0', 'm-a2-1', 'm-b1']);
+  });
+
+  it('não repete os materiais da aula aberta', () => {
+    const result = buildCourseMaterials(
+      [row('own', 'a2', 0), row('other', 'a1', 0)],
+      lessons,
+      'a2',
+    );
+    expect(result.map((m) => m.id)).toEqual(['other']);
+  });
+
+  it('descarta linhas incompletas; aula fora da ementa vai para o fim; vazio -> []', () => {
+    const result = buildCourseMaterials(
+      [
+        row('orphan', 'gone', 0),
+        row('bad-url', 'a1', 0, { external_url: 'javascript:alert(1)' }),
+        row('ok', 'b1', 0),
+      ],
+      lessons,
+      'a2',
+    );
+    expect(result.map((m) => m.id)).toEqual(['ok', 'orphan']);
+    expect(buildCourseMaterials([], lessons, 'a1')).toEqual([]);
   });
 });
 

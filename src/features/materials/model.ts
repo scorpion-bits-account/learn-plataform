@@ -15,6 +15,8 @@ export type EditorMaterial = {
   fileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
+  /** Aparece em todas as aulas do curso (ADMIN-010). */
+  showInAllLessons: boolean;
 };
 
 /** Colunas de `lesson_materials` lidas pelo editor (snake_case, como vêm do banco). */
@@ -30,11 +32,12 @@ export type MaterialRow = {
   file_name: string | null;
   file_size: number | null;
   mime_type: string | null;
+  show_in_all_lessons: boolean;
 };
 
 /** Lista de colunas do `select` que alimenta `MaterialRow`. */
 export const MATERIAL_COLUMNS =
-  'id, type, title, position, body, external_url, video_provider, video_id, file_name, file_size, mime_type';
+  'id, type, title, position, body, external_url, video_provider, video_id, file_name, file_size, mime_type, show_in_all_lessons';
 
 export function toEditorMaterial(row: MaterialRow): EditorMaterial {
   return {
@@ -49,6 +52,7 @@ export function toEditorMaterial(row: MaterialRow): EditorMaterial {
     fileName: row.file_name,
     fileSize: row.file_size,
     mimeType: row.mime_type,
+    showInAllLessons: row.show_in_all_lessons,
   };
 }
 

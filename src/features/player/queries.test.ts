@@ -10,14 +10,18 @@ vi.mock('@/features/catalog/queries', () => ({
 type Result = { data: unknown; error: unknown };
 const results: Record<string, Result> = {};
 let rpcResult: Result = { data: true, error: null };
-const calls: { table: string; eq: [string, unknown][] }[] = [];
+const calls: { table: string; eq: [string, unknown][]; or: string[] }[] = [];
 
 function chain(table: string) {
-  const call = { table, eq: [] as [string, unknown][] };
+  const call = { table, eq: [] as [string, unknown][], or: [] as string[] };
   calls.push(call);
   const api = {
     select: () => api,
     order: () => api,
+    or: (filter: string) => {
+      call.or.push(filter);
+      return api;
+    },
     eq: (column: string, value: unknown) => {
       call.eq.push([column, value]);
       return api;
@@ -145,6 +149,9 @@ describe('getPlayerPage', () => {
       data: [
         {
           id: 'mat-1',
+          lesson_id: L2,
+          position: 0,
+          show_in_all_lessons: false,
           type: 'file',
           title: 'Guia',
           body: null,
@@ -165,10 +172,52 @@ describe('getPlayerPage', () => {
     expect(JSON.stringify(data)).not.toContain('secret-path');
   });
 
+  it('separa os materiais "do curso" (outras aulas) numa única consulta, em ordem da ementa', async () => {
+    const row = (id: string, lesson: string, position: number, all: boolean) => ({
+      id,
+      lesson_id: lesson,
+      position,
+      show_in_all_lessons: all,
+      type: 'link',
+      title: id,
+      body: null,
+      external_url: 'https://exemplo.com',
+      video_provider: null,
+      video_id: null,
+      file_name: null,
+      file_size: null,
+      mime_type: null,
+      storage_path: null,
+    });
+    results.lesson_materials = {
+      data: [
+        row('own', L2, 0, false),
+        row('own-all', L2, 1, true),
+        row('from-l3', L3, 0, true),
+        row('from-l1-b', L1, 1, true),
+        row('from-l1-a', L1, 0, true),
+      ],
+      error: null,
+    };
+    const data = await getPlayerPage('godot', L2, 'u1');
+    expect(data?.materials.map((m) => m.id)).toEqual(['own', 'own-all']);
+    // A aula de origem não duplica; ordem: aula (ementa) e depois posição do material.
+    expect(data?.courseMaterials.map((m) => m.id)).toEqual(['from-l1-a', 'from-l1-b', 'from-l3']);
+    const materialCalls = calls.filter((c) => c.table === 'lesson_materials');
+    expect(materialCalls).toHaveLength(1);
+    expect(materialCalls[0]!.or[0]).toContain(`lesson_id.eq.${L2}`);
+    expect(materialCalls[0]!.or[0]).toContain('show_in_all_lessons.eq.true');
+  });
+
   it('aula bloqueada: nem consulta os materiais', async () => {
     rpcResult = { data: false, error: null };
     const data = await getPlayerPage('godot', L2, 'u2');
-    expect(data).toMatchObject({ canOpen: false, hasAccess: false, materials: [] });
+    expect(data).toMatchObject({
+      canOpen: false,
+      hasAccess: false,
+      materials: [],
+      courseMaterials: [],
+    });
     expect(calls.some((c) => c.table === 'lesson_materials')).toBe(false);
   });
 

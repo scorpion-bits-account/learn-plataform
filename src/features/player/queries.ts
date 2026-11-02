@@ -7,7 +7,13 @@ import type { OutlineModule } from '@/features/catalog/model';
 import { getPublishedCourse } from '@/features/catalog/queries';
 import { createClient } from '@/lib/supabase/server';
 
-import { canOpenLesson, flattenOutline, mapMaterialRow, resolveResumeLessonId } from './model';
+import {
+  buildCourseMaterials,
+  canOpenLesson,
+  flattenOutline,
+  mapMaterialRow,
+  resolveResumeLessonId,
+} from './model';
 import type { FlatLesson, LessonProgressRow, PlayerMaterial } from './model';
 import { courseSlugSchema, lessonIdSchema } from './schemas';
 
@@ -128,6 +134,8 @@ export type PlayerPageData = {
   canOpen: boolean;
   completedIds: string[];
   materials: PlayerMaterial[];
+  /** Materiais "em todas as aulas" de OUTRAS aulas do curso (ADMIN-010), em ordem da ementa. */
+  courseMaterials: PlayerMaterial[];
 };
 
 /**
@@ -157,23 +165,44 @@ export const getPlayerPage = cache(
       hasAccess: ctx.hasAccess,
       canOpen,
       completedIds: ctx.progress.filter((p) => p.completedAt).map((p) => p.lessonId),
-      materials: canOpen ? await getLessonMaterials(ctx.course.id, lesson.id) : [],
+      ...(canOpen
+        ? await getMaterialsFor(ctx.course.id, lesson.id, ctx.lessons)
+        : { materials: [], courseMaterials: [] }),
     };
   },
 );
 
-/** Materiais da aula em ordem. Sem `storage_path` no retorno (o cliente baixa por action). */
-async function getLessonMaterials(courseId: string, lessonId: string): Promise<PlayerMaterial[]> {
+const MATERIAL_COLUMNS =
+  'id, type, title, body, external_url, video_provider, video_id, file_name, file_size, mime_type, storage_path';
+
+/**
+ * Materiais da aula + materiais "em todas as aulas" do curso numa consulta só (sem N+1):
+ * traz as linhas da aula OU com a flag e separa em memória. A RLS decide o que volta.
+ * Sem `storage_path` no retorno (o cliente baixa por action).
+ */
+async function getMaterialsFor(
+  courseId: string,
+  lessonId: string,
+  lessons: FlatLesson[],
+): Promise<{ materials: PlayerMaterial[]; courseMaterials: PlayerMaterial[] }> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('lesson_materials')
-    .select(
-      'id, type, title, body, external_url, video_provider, video_id, file_name, file_size, mime_type, storage_path',
-    )
+    .select(`lesson_id, position, show_in_all_lessons, ${MATERIAL_COLUMNS}`)
     .eq('course_id', courseId)
-    .eq('lesson_id', lessonId)
-    .order('position', { ascending: true });
+    .or(`lesson_id.eq.${lessonId},show_in_all_lessons.eq.true`);
   if (error) throw new Error('Não foi possível carregar os materiais da aula.');
 
-  return (data ?? []).map(mapMaterialRow).filter((m): m is PlayerMaterial => m !== null);
+  const rows = data ?? [];
+  const own = rows
+    .filter((row) => row.lesson_id === lessonId)
+    .sort((a, b) => a.position - b.position);
+  return {
+    materials: own.map(mapMaterialRow).filter((m): m is PlayerMaterial => m !== null),
+    courseMaterials: buildCourseMaterials(
+      rows.filter((row) => row.show_in_all_lessons),
+      lessons,
+      lessonId,
+    ),
+  };
 }

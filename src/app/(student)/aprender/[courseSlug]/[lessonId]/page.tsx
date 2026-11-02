@@ -54,6 +54,7 @@ export default async function LessonPage({ params }: { params: Params }) {
         hrefFor,
       })}
       materials={data.materials}
+      courseMaterials={data.courseMaterials}
       canOpen={data.canOpen}
       hasAccess={hasAccess}
       prev={link(neighbors.prev)}
