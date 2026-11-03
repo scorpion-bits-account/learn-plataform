@@ -51,7 +51,7 @@ export const metadata: Metadata = {
         url: '/brand/og-cover.png',
         width: 1200,
         height: 630,
-        alt: 'Scorpion Bits — escorpião feito de cubos isométricos',
+        alt: 'Scorpion Bits Learn — cursos de desenvolvimento de jogos',
       },
     ],
   },

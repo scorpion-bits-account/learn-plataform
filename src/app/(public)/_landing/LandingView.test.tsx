@@ -17,7 +17,9 @@ describe('LandingView', () => {
       'href',
       '/cadastro',
     );
-    expect(screen.getByRole('heading', { level: 2, name: 'Comece por aqui' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Cursos em destaque' }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThanOrEqual(3);
     expect(
       screen.getAllByRole('link', { name: /Godot do zero|Pixel art|Game design/ }),
@@ -35,7 +37,9 @@ describe('LandingView', () => {
 
   it('sem cursos: a seção de destaque some', () => {
     render(<LandingView signedIn={false} courses={[]} />);
-    expect(screen.queryByRole('heading', { name: 'Comece por aqui' })).toBeNull();
-    expect(screen.getByRole('heading', { level: 2, name: /Três passos/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Cursos em destaque' })).toBeNull();
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Do primeiro acesso/ }),
+    ).toBeInTheDocument();
   });
 });

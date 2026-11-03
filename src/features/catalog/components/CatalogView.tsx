@@ -35,7 +35,7 @@ export function CatalogView({
         <p className={styles.eyebrow}>Catálogo</p>
         <h1 className={styles.title}>Cursos de game dev</h1>
         <p className={styles.lead}>
-          Aprenda criando jogos de verdade, com quem faz jogos. Escolha por área e nível.
+          Cursos práticos de desenvolvimento de jogos, organizados por área e nível.
         </p>
       </header>
 

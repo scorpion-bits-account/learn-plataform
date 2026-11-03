@@ -59,6 +59,32 @@
   gap: var(--space-3);
 }
 
+.highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: var(--s--1);
+  list-style: none;
+}
+
+.highlights li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.highlights li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex: none;
+  background: var(--cyan);
+  transform: rotate(45deg);
+}
+
 /* ------------------------------------------------------------------- hero */
 .hero {
   display: grid;
@@ -208,12 +234,6 @@
   gap: var(--space-3);
 }
 
-.stepHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
 .stepNum {
   color: var(--text-dim);
   font-family: var(--font-mono);
@@ -346,20 +366,6 @@
   gap: var(--space-4);
   padding-block: var(--space-4);
   text-align: center;
-}
-
-.ctaCubes {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-}
-
-.ctaCubes > :nth-child(2) {
-  margin-bottom: var(--space-3);
-}
-
-.ctaCubes > :nth-child(3) {
-  margin-bottom: var(--space-5);
 }
 
 .ctaText {

@@ -30,31 +30,26 @@ const HERO_CUBES: ReadonlyArray<{
   { size: 30, tone: 'cyan', state: 'empty', top: '88%', left: '22%', delay: '-3s' },
 ];
 
-const STEPS: ReadonlyArray<{
-  title: string;
-  text: string;
-  state: IsoCubeState;
-  tone: IsoCubeTone;
-}> = [
+const STEPS: ReadonlyArray<{ title: string; text: string }> = [
   {
-    title: 'Escolha seu curso',
-    text: 'Cada trilha tem nível, carga horária e preço claros. Comece pelo que faz sentido para o jogo que você quer fazer.',
-    state: 'empty',
-    tone: 'cyan',
+    title: 'Escolha o curso',
+    text: 'Cada curso mostra nível, carga horária, conteúdo das aulas e preço antes da compra.',
   },
   {
-    title: 'Aprenda no seu ritmo',
-    text: 'Aulas em vídeo e material de apoio, no computador ou no celular. Pause, volte e continue de onde parou.',
-    state: 'filled',
-    tone: 'cyan',
+    title: 'Estude no seu ritmo',
+    text: 'Aulas em vídeo e materiais de apoio no computador ou no celular. Seu progresso fica salvo para continuar de onde parou.',
   },
   {
-    title: 'Publique seu jogo',
-    text: 'Você termina com um projeto jogável, pronto para mostrar ao mundo, e cada aula concluída acende um cubo.',
-    state: 'active',
-    tone: 'amber',
+    title: 'Construa seu projeto',
+    text: 'Os cursos são guiados por projetos práticos: você termina com um jogo funcional para o seu portfólio.',
   },
 ];
+
+const HIGHLIGHTS = [
+  'Acesso imediato após o pagamento',
+  'PIX ou cartão de crédito',
+  'Assista no computador ou no celular',
+] as const;
 
 export function LandingView({ signedIn, courses }: LandingViewProps) {
   return (
@@ -62,13 +57,13 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
       {/* ------------------------------------------------------------ hero */}
       <section className={styles.hero} aria-labelledby="hero-title">
         <div className={styles.heroText}>
-          <p className={styles.eyebrow}>Estúdio de jogos indie · Cursos de game dev</p>
+          <p className={styles.eyebrow}>Cursos online de desenvolvimento de jogos</p>
           <h1 id="hero-title" className={styles.title}>
             Aprenda a criar jogos com <em>quem faz jogos</em>
           </h1>
           <p className={styles.lead}>
-            Cursos feitos pelo estúdio Scorpion Bits: do zero ao seu primeiro projeto publicado, com
-            projetos de verdade e no seu ritmo.
+            Cursos completos criados pelo estúdio Scorpion Bits, com aulas em vídeo, material de
+            apoio e projetos práticos para você sair do zero e publicar o seu primeiro jogo.
           </p>
           <div className={styles.actions}>
             <Button href="/cursos" size="lg">
@@ -84,6 +79,11 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
               </Button>
             )}
           </div>
+          <ul className={styles.highlights}>
+            {HIGHLIGHTS.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </div>
 
         <div className={styles.stage} aria-hidden="true">
@@ -106,17 +106,14 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
         <header className={styles.sectionHead}>
           <p className={styles.eyebrow}>Como funciona</p>
           <h2 id="como-funciona" className={styles.h2}>
-            Três passos, um cubo de cada vez
+            Do primeiro acesso ao jogo publicado
           </h2>
         </header>
         <ol className={styles.steps}>
           {STEPS.map((step, i) => (
             <ChamferCard as="li" key={step.title} shape="face" tilt={i % 2 ? 'left' : 'right'}>
               <div className={styles.step}>
-                <div className={styles.stepHead}>
-                  <IsoCube size={48} state={step.state} tone={step.tone} />
-                  <span className={styles.stepNum}>Passo {String(i + 1).padStart(2, '0')}</span>
-                </div>
+                <span className={styles.stepNum}>Passo {String(i + 1).padStart(2, '0')}</span>
                 <h3 className={styles.h3}>{step.title}</h3>
                 <p className={styles.stepText}>{step.text}</p>
               </div>
@@ -131,7 +128,7 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>Cursos</p>
             <h2 id="cursos-destaque" className={styles.h2}>
-              Comece por aqui
+              Cursos em destaque
             </h2>
           </header>
           <ul className={styles.courses}>
@@ -153,16 +150,17 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
           <div className={styles.studioText}>
             <p className={styles.eyebrow}>Sobre o estúdio</p>
             <h2 id="estudio" className={styles.h2}>
-              Quem ensina também publica jogos
+              Quem ensina também desenvolve jogos
             </h2>
             <p className={styles.studioP}>
-              A Scorpion Bits é um estúdio de jogos indie focado em mecânicas polidas e direção de
-              arte própria. O que ensinamos aqui é o que usamos no dia a dia.
+              A Scorpion Bits é um estúdio independente de desenvolvimento de jogos. O conteúdo dos
+              cursos vem da prática: as mesmas ferramentas e processos que usamos nos nossos
+              projetos.
             </p>
             <p className={styles.studioP}>
-              Nasceu no <strong>GameLab</strong>, nosso curso presencial no SESC Araraquara: 15
-              encontros, do zero absoluto até um jogo 2D completo em Godot, com um material escrito
-              para quem nunca programou.
+              A metodologia nasceu no <strong>GameLab</strong>, curso presencial que ministramos no
+              SESC Araraquara: 15 encontros, do zero a um jogo 2D completo em Godot, com material
+              pensado para quem nunca programou.
             </p>
           </div>
           <dl className={styles.facts}>
@@ -189,16 +187,12 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
       <section className={styles.section} aria-labelledby="cta-final">
         <ChamferCard as="div" shape="face">
           <div className={styles.cta}>
-            <div className={styles.ctaCubes} aria-hidden="true">
-              <IsoCube size={36} state="filled" />
-              <IsoCube size={36} state="filled" tone="violet" />
-              <IsoCube size={36} state="active" tone="amber" />
-            </div>
             <h2 id="cta-final" className={styles.h2}>
-              Seu primeiro jogo começa no primeiro cubo
+              Comece hoje o seu primeiro jogo
             </h2>
             <p className={styles.ctaText}>
-              Veja os cursos, escolha o seu e comece hoje, direto do celular ou do computador.
+              Escolha um curso e tenha acesso imediato após a confirmação do pagamento, no
+              computador ou no celular.
             </p>
             <div className={styles.actions}>
               <Button href="/cursos" size="lg">
