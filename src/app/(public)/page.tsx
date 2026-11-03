@@ -10,14 +10,14 @@ import { LandingView } from './_landing/LandingView';
 
 const title = 'Scorpion Bits Learn — aprenda a criar jogos com quem faz jogos';
 const description =
-  'Cursos de game dev do estúdio Scorpion Bits: do zero ao seu primeiro jogo publicado, no seu ritmo e também no celular.';
+  'Cursos online de desenvolvimento de jogos do estúdio Scorpion Bits: aulas em vídeo, material de apoio e projetos práticos, do zero ao primeiro jogo publicado.';
 
 // `openGraph`/`twitter` de uma página substituem os do layout (merge raso): repetimos a imagem.
 const ogImage = {
   url: '/brand/og-cover.png',
   width: 1200,
   height: 630,
-  alt: 'Scorpion Bits — escorpião feito de cubos isométricos',
+  alt: 'Scorpion Bits Learn — cursos de desenvolvimento de jogos',
 };
 
 export const metadata: Metadata = {
