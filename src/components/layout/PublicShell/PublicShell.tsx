@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 import { Dock, Logo } from '@/components/brand';
 import { Button } from '@/components/ui';
-import { company } from '@/config/company';
+import { company, whatsappUrl } from '@/config/company';
 
 import { ActiveDockLink } from '../NavLinks';
 import { SkipLink } from '../SkipLink/SkipLink';
@@ -62,6 +62,9 @@ export function PublicShell({ user, children }: PublicShellProps) {
             <Link href="/termos">Termos de uso</Link>
             <Link href="/privacidade">Privacidade</Link>
             <a href={`mailto:${company.email}`}>Contato</a>
+            <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer">
+              WhatsApp
+            </a>
           </nav>
           <p className={styles.legal}>
             © {new Date().getFullYear()} {company.brand} · {company.legalName} · CNPJ {company.cnpj}

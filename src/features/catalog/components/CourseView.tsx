@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { ChamferCard, IsoCover } from '@/components/brand';
 import { Badge, Button } from '@/components/ui';
+import { whatsappUrl } from '@/config/company';
 
 import {
   descriptionToBlocks,
@@ -118,6 +119,23 @@ function Syllabus({ slug, outline }: { slug: string; outline: OutlineModule[] })
   );
 }
 
+/** "Dúvidas? Fale no WhatsApp": abre a conversa já citando o curso. */
+function WhatsAppHelp({ title, className }: { title: string; className?: string }) {
+  return (
+    <p className={className}>
+      Dúvidas?{' '}
+      <a
+        href={whatsappUrl(`Olá! Tenho uma dúvida sobre o curso ${title}.`)}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Fale no WhatsApp
+        <span className={styles.sr}> (abre em nova aba)</span>
+      </a>
+    </p>
+  );
+}
+
 export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewProps) {
   const cta = resolveCta(course.slug, signedIn, hasAccess);
   const duration = formatDuration(course.durationSeconds);
@@ -153,6 +171,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
               <li>{pluralLessons(course.lessonCount)}</li>
               {duration && <li>{duration}</li>}
             </ul>
+            {!hasAccess && <WhatsAppHelp title={course.title} className={styles.helpMobile} />}
           </div>
         </header>
 
@@ -171,6 +190,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
                 Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
               </p>
             )}
+            {!hasAccess && <WhatsAppHelp title={course.title} className={styles.help} />}
           </ChamferCard>
         </aside>
 
