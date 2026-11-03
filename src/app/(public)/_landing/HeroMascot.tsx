@@ -14,6 +14,7 @@ type NetworkInfo = { saveData?: boolean; effectiveType?: string };
  * Escorpião da landing: o poster (quadro 0 da animação, 2x) é sempre renderizado e é
  * o LCP; onde o navegador toca WebM com alpha (não Safari/iPhone — ver mascot-anim.ts)
  * o vídeo carrega depois do `load`, entra por cima com fade e pausa fora da tela.
+ * É decorativo: sem PiP/"pop-out" (Opera, Edge) nem transmissão.
  */
 export function HeroMascot() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -78,6 +79,9 @@ export function HeroMascot() {
         muted
         loop
         playsInline
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
         preload="none"
         aria-hidden="true"
         tabIndex={-1}
