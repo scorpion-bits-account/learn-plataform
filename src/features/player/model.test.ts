@@ -187,7 +187,7 @@ describe('buildVideoEmbed', () => {
   it('YouTube: iframe youtube-nocookie e miniatura', () => {
     const embed = buildVideoEmbed('youtube', 'dQw4w9WgXcQ');
     expect(embed?.src).toBe(
-      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&modestbranding=1',
+      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&modestbranding=1&playsinline=1&vq=hd1080',
     );
     expect(embed?.thumbnailUrl).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
     expect(embed?.providerLabel).toBe('YouTube');

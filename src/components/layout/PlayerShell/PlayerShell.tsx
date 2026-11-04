@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, useState } from 'react';
+import { useId, useState, useSyncExternalStore } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 
 import { CubeProgress } from '@/components/brand';
@@ -38,6 +38,41 @@ export interface PlayerShellProps {
  * "Aulas" (mobile), e barra inferior com Anterior / Concluir / Próxima.
  * Recebe tudo por props/slots; não busca dados.
  */
+/*
+ * Modo cinema (ementa oculta, vídeo maior) lembrado entre aulas neste navegador.
+ * Memória do módulo como fonte; localStorage só para persistir (pode estar bloqueado).
+ */
+const CINEMA_KEY = 'sbl-player-cinema';
+const cinemaListeners = new Set<() => void>();
+let cinemaMemory: boolean | null = null;
+
+function readCinema(): boolean {
+  if (cinemaMemory === null) {
+    try {
+      cinemaMemory = window.localStorage.getItem(CINEMA_KEY) === '1';
+    } catch {
+      cinemaMemory = false;
+    }
+  }
+  return cinemaMemory;
+}
+
+function writeCinema(value: boolean): void {
+  cinemaMemory = value;
+  try {
+    if (value) window.localStorage.setItem(CINEMA_KEY, '1');
+    else window.localStorage.removeItem(CINEMA_KEY);
+  } catch {
+    // sem armazenamento: só não lembra na próxima visita
+  }
+  cinemaListeners.forEach((listener) => listener());
+}
+
+function subscribeCinema(listener: () => void): () => void {
+  cinemaListeners.add(listener);
+  return () => cinemaListeners.delete(listener);
+}
+
 export function PlayerShell({
   backHref,
   backLabel = 'Voltar à biblioteca',
@@ -50,7 +85,9 @@ export function PlayerShell({
   next,
   children,
 }: PlayerShellProps) {
-  const [asideOpen, setAsideOpen] = useState(true);
+  const cinema = useSyncExternalStore(subscribeCinema, readCinema, () => false);
+  const asideOpen = !cinema;
+  const setAsideOpen = (update: (open: boolean) => boolean) => writeCinema(!update(asideOpen));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const asideId = useId();
   const hasActions = Boolean(prev || complete || next);
@@ -61,7 +98,7 @@ export function PlayerShell({
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-cinema={asideOpen ? undefined : ''}>
       <SkipLink />
       <header className={styles.top}>
         <Link href={backHref} className={styles.back} aria-label={backLabel}>
@@ -91,11 +128,12 @@ export function PlayerShell({
           type="button"
           className={`${styles.toggle} ${styles.toggleDesktop}`}
           onClick={() => setAsideOpen((value) => !value)}
-          aria-expanded={asideOpen}
+          aria-pressed={!asideOpen}
           aria-controls={asideId}
+          title="Oculta a ementa e aumenta o vídeo (melhora a qualidade do YouTube)"
         >
           <SidebarIcon />
-          <span>{asideOpen ? 'Ocultar ementa' : 'Mostrar ementa'}</span>
+          <span>Modo cinema</span>
         </button>
       </header>
 
