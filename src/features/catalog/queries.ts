@@ -2,7 +2,7 @@ import 'server-only';
 
 import { cache } from 'react';
 
-import { createPublicClient } from '@/lib/supabase/public';
+import { createPublicClient, isBuildPhase } from '@/lib/supabase/public';
 import { createClient } from '@/lib/supabase/server';
 
 import { deriveCategories, groupOutline, mapCatalogRow } from './model';
@@ -29,7 +29,10 @@ export async function getCatalog(): Promise<CatalogData> {
     .from('course_catalog')
     .select('*')
     .order('published_at', { ascending: false });
-  if (error) throw new Error('Não foi possível carregar o catálogo.');
+  if (error) {
+    if (isBuildPhase()) return { courses: [], categories: [] };
+    throw new Error('Não foi possível carregar o catálogo.');
+  }
 
   const rows = data ?? [];
   const courses = rows.map(mapCatalogRow).filter((c): c is CatalogCourse => c !== null);

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createClient } from '@supabase/supabase-js';
+import { PHASE_PRODUCTION_BUILD } from 'next/constants';
 
 import { getClientEnv } from '@/lib/env/client';
 import type { Database } from '@/types/database';
@@ -22,4 +23,13 @@ export function createPublicClient() {
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
   );
+}
+
+/**
+ * `next build` sem Supabase acessível (CI usa uma URL fictícia): a página pré-renderiza
+ * vazia em vez de derrubar o build; na Vercel o build alcança o banco normalmente.
+ * Em execução (ISR) o erro continua subindo, e a Vercel mantém a versão anterior em cache.
+ */
+export function isBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
 }
