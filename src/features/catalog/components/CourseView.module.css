@@ -366,3 +366,89 @@
     max-width: none;
   }
 }
+
+/* Selos de confiança (cartão de compra) */
+.trust {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-soft);
+  font-size: var(--s--1);
+}
+
+.trust li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.trustIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15em;
+  fill: none;
+  stroke: var(--mint);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Perguntas frequentes */
+.faq {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.faqItem {
+  border: 1px solid var(--hair);
+  border-radius: var(--r);
+  background: var(--glass-bg);
+}
+
+.faqItem[open] {
+  border-color: var(--hair-lit);
+}
+
+.faqQ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faqQ::-webkit-details-marker {
+  display: none;
+}
+
+.faqQ:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+
+.faqItem[open] .chevron {
+  transform: rotate(180deg);
+}
+
+.faqA {
+  padding: 0 var(--space-4) var(--space-4);
+  color: var(--text-soft);
+}
+
+.faqMore {
+  margin-top: var(--space-4);
+  color: var(--text-soft);
+  font-size: var(--s-0);
+}
+
+.faqMore a {
+  color: var(--cyan);
+}
