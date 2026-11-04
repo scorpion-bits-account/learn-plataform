@@ -93,6 +93,13 @@
   font-size: var(--s--1);
 }
 
+/* "Comprar" + "Assistir aula grátis" no cartão: mesmo respiro do resto do card. */
+.buyActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .freeMobile {
   margin-top: var(--space-4);
   width: 100%;

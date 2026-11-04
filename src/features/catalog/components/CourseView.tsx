@@ -293,14 +293,16 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
               {price}
             </p>
             {hasAccess && <Badge tone="mint">Na sua biblioteca</Badge>}
-            <Button href={cta.href} size="lg" fullWidth>
-              {cta.label}
-            </Button>
-            {freeHref && (
-              <Button href={freeHref} variant="secondary" size="lg" fullWidth>
-                Assistir aula grátis
+            <div className={styles.buyActions}>
+              <Button href={cta.href} size="lg" fullWidth>
+                {cta.label}
               </Button>
-            )}
+              {freeHref && (
+                <Button href={freeHref} variant="secondary" size="lg" fullWidth>
+                  Assistir aula grátis
+                </Button>
+              )}
+            </div>
             {(cta.kind === 'buy' || cta.kind === 'sign-up') && (
               <p className={styles.note}>
                 Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
