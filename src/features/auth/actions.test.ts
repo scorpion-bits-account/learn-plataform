@@ -19,6 +19,7 @@ const auth = {
   resetPasswordForEmail: vi.fn(),
   updateUser: vi.fn(),
   signOut: vi.fn(),
+  signInWithOAuth: vi.fn(),
 };
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({ auth })) }));
 vi.mock('@/lib/env/client', () => ({
@@ -33,7 +34,7 @@ vi.mock('@/lib/auth/dal', () => ({
   requireUser: vi.fn(),
 }));
 
-import { requestPasswordReset, resetPassword, signIn, signUp } from './actions';
+import { requestPasswordReset, resetPassword, signIn, signInWithGoogle, signUp } from './actions';
 import { INVALID_CREDENTIALS, RECOVERY_SENT } from './messages';
 import { IDLE_STATE } from './schemas';
 
@@ -204,5 +205,37 @@ describe('resetPassword', () => {
     const r = await resetPassword(IDLE_STATE, form({ password: 'abc', confirm_password: 'abc' }));
     expect(r.status).toBe('error');
     expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('signInWithGoogle', () => {
+  it('manda para o Google com a volta pelo callback e o next sanitizado', async () => {
+    auth.signInWithOAuth.mockResolvedValue({
+      data: { url: 'https://accounts.google.test/o' },
+      error: null,
+    });
+    const url = await redirectTarget(signInWithGoogle(form({ next: '/checkout/astrodash' })));
+    expect(url).toBe('https://accounts.google.test/o');
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: 'https://learn.test/auth/callback?next=%2Fcheckout%2Fastrodash' },
+    });
+  });
+
+  it('ignora next externo (sem open redirect)', async () => {
+    auth.signInWithOAuth.mockResolvedValue({
+      data: { url: 'https://accounts.google.test/o' },
+      error: null,
+    });
+    await redirectTarget(signInWithGoogle(form({ next: '//evil.dev' })));
+    expect(auth.signInWithOAuth.mock.calls[0]?.[0]?.options?.redirectTo).toBe(
+      'https://learn.test/auth/callback?next=%2Finicio',
+    );
+  });
+
+  it('erro do provedor volta para /entrar com aviso, mantendo o next', async () => {
+    auth.signInWithOAuth.mockResolvedValue({ data: { url: null }, error: { message: 'off' } });
+    const url = await redirectTarget(signInWithGoogle(form({ next: '/checkout/astrodash' })));
+    expect(url).toBe('/entrar?next=%2Fcheckout%2Fastrodash&erro=google');
   });
 });

@@ -110,6 +110,28 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
   };
 }
 
+/**
+ * "Continuar com Google": pede ao Supabase a URL do Google e manda o navegador para lá.
+ * A volta cai em /auth/callback (troca do `code` PKCE, mesmo navegador) e segue para `next`.
+ * O nome vem do Google (`full_name`); o papel segue sempre `student` (trigger).
+ */
+export async function signInWithGoogle(formData: FormData): Promise<void> {
+  const next = sanitizeNextPath(str(formData, 'next'));
+  const back = next === '/inicio' ? '/entrar' : `/entrar?next=${encodeURIComponent(next)}`;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${getClientEnv().NEXT_PUBLIC_SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
+    },
+  });
+  if (error || !data.url) {
+    redirect(`${back}${back.includes('?') ? '&' : '?'}erro=google`);
+  }
+  redirect(data.url);
+}
+
 export async function requestPasswordReset(
   _prev: AuthFormState,
   formData: FormData,

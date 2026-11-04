@@ -132,6 +132,93 @@ function Syllabus({
   );
 }
 
+/** Selos de confiança perto do botão de compra (fatos verificáveis: termos, AbacatePay, CDC). */
+function TrustList() {
+  return (
+    <ul className={styles.trust}>
+      <li>
+        <ShieldIcon />
+        Pagamento seguro pela AbacatePay
+      </li>
+      <li>
+        <ShieldIcon />
+        Garantia de 7 dias: não gostou, devolvemos seu dinheiro
+      </li>
+      <li>
+        <ShieldIcon />
+        Acesso liberado na hora, no celular ou no computador
+      </li>
+    </ul>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg className={styles.trustIcon} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M8 1.5 2.5 3.5v4c0 3.2 2.3 5.9 5.5 7 3.2-1.1 5.5-3.8 5.5-7v-4L8 1.5Z" />
+      <path d="m5.5 8 1.8 1.8L10.8 6.3" />
+    </svg>
+  );
+}
+
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: 'Como recebo o acesso?',
+    a: 'Assim que o pagamento é confirmado, o curso aparece em "Minha biblioteca" na sua conta. No PIX isso costuma levar poucos segundos.',
+  },
+  {
+    q: 'Quais são as formas de pagamento?',
+    a: 'PIX ou cartão de crédito, processados pela AbacatePay. A Scorpion Bits não vê nem guarda os dados do seu cartão.',
+  },
+  {
+    q: 'Posso ver uma aula antes de comprar?',
+    a: 'Sim. As aulas marcadas como "Prévia" na ementa são gratuitas: basta criar uma conta.',
+  },
+  {
+    q: 'Consigo assistir pelo celular?',
+    a: 'Sim. A plataforma funciona no navegador do celular, do tablet e do computador, sem instalar nada.',
+  },
+  {
+    q: 'E se eu não gostar?',
+    a: 'Você tem 7 dias após a compra para pedir o reembolso integral, direto em "Minha conta", sem precisar explicar o motivo.',
+  },
+];
+
+function Faq({ title }: { title: string }) {
+  return (
+    <section aria-labelledby="faq" className={styles.section}>
+      <h2 id="faq" className={styles.h2}>
+        Perguntas frequentes
+      </h2>
+      <div className={styles.faq}>
+        {FAQ.map((item) => (
+          <details key={item.q} className={styles.faqItem}>
+            <summary className={styles.faqQ}>
+              {item.q}
+              <svg className={styles.chevron} viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m4 6 4 4 4-4" />
+              </svg>
+            </summary>
+            <p className={styles.faqA}>{item.a}</p>
+          </details>
+        ))}
+      </div>
+      <p className={styles.faqMore}>
+        Ainda tem dúvida?{' '}
+        <a
+          href={whatsappUrl(`Olá! Tenho uma dúvida sobre o curso ${title}.`)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Fale com a gente no WhatsApp
+          <span className={styles.sr}> (abre em nova aba)</span>
+        </a>{' '}
+        ou leia os <Link href="/termos">termos de uso</Link>.
+      </p>
+    </section>
+  );
+}
+
 /** "Dúvidas? Fale no WhatsApp": abre a conversa já citando o curso. */
 function WhatsAppHelp({ title, className }: { title: string; className?: string }) {
   return (
@@ -203,6 +290,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
                 Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
               </p>
             )}
+            {!hasAccess && <TrustList />}
             {!hasAccess && <WhatsAppHelp title={course.title} className={styles.help} />}
           </ChamferCard>
         </aside>
@@ -210,6 +298,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
         <div className={styles.content}>
           <Description markdown={course.description} />
           <Syllabus slug={course.slug} outline={outline} signedIn={signedIn} />
+          {!hasAccess && <Faq title={course.title} />}
         </div>
       </div>
 

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { GoogleSignIn } from '@/features/auth/components/GoogleSignIn';
+import { isGoogleSignInEnabled } from '@/features/auth/providers';
 import { AuthCard } from '@/features/auth/components/AuthCard';
 import { SignUpForm } from '@/features/auth/components/SignUpForm';
 import { sanitizeNextPath } from '@/lib/auth/redirect';
@@ -25,6 +27,7 @@ export default async function CadastroPage({ searchParams }: { searchParams: Sea
             : 'Comece a aprender a criar jogos.'
       }
     >
+      {isGoogleSignInEnabled() ? <GoogleSignIn next={safeNext} /> : null}
       <SignUpForm next={safeNext} />
     </AuthCard>
   );

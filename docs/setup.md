@@ -126,3 +126,14 @@ npm install
 cp .env.example .env.local   # preencha com os mesmos valores (pode usar outro projeto Supabase de dev)
 npm run dev                   # http://localhost:3000
 ```
+
+## Login com Google
+
+1. Google Cloud Console → APIs e serviços → Tela de consentimento OAuth: tipo **Externo**, nome "Scorpion Bits Learn", email de suporte; publique o app.
+2. Credenciais → Criar credenciais → **ID do cliente OAuth** → Aplicativo da Web.
+   - URI de redirecionamento autorizado: `https://<projeto>.supabase.co/auth/v1/callback` (copie no Supabase, passo 3).
+3. Supabase → Authentication → Sign In / Providers → **Google**: ative e cole o Client ID e o Client Secret.
+4. Supabase → Authentication → URL Configuration: `Site URL` = domínio do learn; em Redirect URLs, `https://<domínio>/auth/callback**`.
+5. Vercel → Settings → Environment Variables: `AUTH_GOOGLE_ENABLED=true` (Production) e faça Redeploy.
+
+O nome do aluno vem do Google (`full_name`); o papel continua `student` (trigger `handle_new_user`).
