@@ -1,15 +1,18 @@
+import type { ReactNode } from 'react';
+
 import { ChamferCard, IsoCube } from '@/components/brand';
 import type { IsoCubeState, IsoCubeTone } from '@/components/brand';
 import { Button } from '@/components/ui';
 import { CourseCard } from '@/features/catalog/components/CourseCard';
+import { AuthSwitch } from '@/features/viewer/ViewerProvider';
 import type { CourseView } from '@/features/catalog/components/types';
 
 import { HeroMascot } from './HeroMascot';
 import styles from './LandingView.module.css';
 
 export interface LandingViewProps {
-  /** Troca "Criar conta" por "Minha biblioteca". */
-  signedIn: boolean;
+  /** Troca "Criar conta" por "Minha biblioteca". `undefined` = decidido no navegador (página em cache). */
+  signedIn?: boolean;
   /** Até 3 cursos publicados; vazio = a seção some. */
   courses: CourseView[];
 }
@@ -51,6 +54,20 @@ const HIGHLIGHTS = [
   'Assista no computador ou no celular',
 ] as const;
 
+/** `signedIn` fixo (vitrine /dev) ou decidido no navegador. */
+function Switch({
+  signedIn,
+  user,
+  guest,
+}: {
+  signedIn?: boolean;
+  user: ReactNode;
+  guest: ReactNode;
+}) {
+  if (signedIn === undefined) return <AuthSwitch signedIn={user} guest={guest} />;
+  return <>{signedIn ? user : guest}</>;
+}
+
 export function LandingView({ signedIn, courses }: LandingViewProps) {
   return (
     <div className={styles.page}>
@@ -69,15 +86,19 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
             <Button href="/cursos" size="lg">
               Ver cursos
             </Button>
-            {signedIn ? (
-              <Button href="/minha-biblioteca" variant="secondary" size="lg">
-                Minha biblioteca
-              </Button>
-            ) : (
-              <Button href="/cadastro" variant="secondary" size="lg">
-                Criar conta
-              </Button>
-            )}
+            <Switch
+              signedIn={signedIn}
+              user={
+                <Button href="/minha-biblioteca" variant="secondary" size="lg">
+                  Minha biblioteca
+                </Button>
+              }
+              guest={
+                <Button href="/cadastro" variant="secondary" size="lg">
+                  Criar conta
+                </Button>
+              }
+            />
           </div>
           <ul className={styles.highlights}>
             {HIGHLIGHTS.map((item) => (
@@ -198,11 +219,15 @@ export function LandingView({ signedIn, courses }: LandingViewProps) {
               <Button href="/cursos" size="lg">
                 Ver cursos
               </Button>
-              {!signedIn && (
-                <Button href="/cadastro" variant="secondary" size="lg">
-                  Criar conta
-                </Button>
-              )}
+              <Switch
+                signedIn={signedIn}
+                user={null}
+                guest={
+                  <Button href="/cadastro" variant="secondary" size="lg">
+                    Criar conta
+                  </Button>
+                }
+              />
             </div>
           </div>
         </ChamferCard>

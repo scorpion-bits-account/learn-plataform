@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 
+import { CatalogLive } from '@/features/catalog/components/CatalogLive';
 import { CatalogView } from '@/features/catalog/components/CatalogView';
 import { withCover } from '@/features/catalog/presenters';
 import { getCatalog } from '@/features/catalog/queries';
-import { parseCatalogFilters } from '@/features/catalog/schemas';
 
 export const metadata: Metadata = {
   title: 'Cursos',
@@ -11,24 +12,20 @@ export const metadata: Metadata = {
   alternates: { canonical: '/cursos' },
 };
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+/** Igual para todos: cache de 5 min. Filtros da URL são aplicados no navegador. */
+export const revalidate = 300;
 
-export default async function CatalogPage({ searchParams }: { searchParams: SearchParams }) {
-  const filters = parseCatalogFilters(await searchParams);
-  const { courses, categories, ownedCourseIds } = await getCatalog();
-
-  const visible = courses.filter(
-    (c) =>
-      (!filters.categoria || c.categorySlug === filters.categoria) &&
-      (!filters.nivel || c.level === filters.nivel),
-  );
+export default async function CatalogPage() {
+  const { courses, categories } = await getCatalog();
+  const all = courses.map(withCover);
 
   return (
-    <CatalogView
-      courses={visible.map(withCover)}
-      categories={categories}
-      filters={filters}
-      ownedCourseIds={ownedCourseIds}
-    />
+    <Suspense
+      fallback={
+        <CatalogView courses={all} categories={categories} filters={{}} ownedCourseIds={[]} />
+      }
+    >
+      <CatalogLive courses={all} categories={categories} />
+    </Suspense>
   );
 }

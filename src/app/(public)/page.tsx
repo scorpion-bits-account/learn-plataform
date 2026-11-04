@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { unstable_rethrow } from 'next/navigation';
 
-import { getCurrentUser } from '@/lib/auth/dal';
 import { withCover } from '@/features/catalog/presenters';
 import { getCatalog } from '@/features/catalog/queries';
 import type { CourseView } from '@/features/catalog/components/types';
@@ -36,15 +35,8 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title, description, images: [ogImage.url] },
 };
 
-/** UX, não autorização: qualquer falha vira "visitante". */
-async function isSignedIn(): Promise<boolean> {
-  try {
-    return Boolean(await getCurrentUser());
-  } catch (error) {
-    unstable_rethrow(error);
-    return false;
-  }
-}
+/** Página igual para todos: cache de 5 min (admin revalida ao salvar um curso). */
+export const revalidate = 300;
 
 /** Até 3 cursos publicados. Supabase indisponível/sem env = lista vazia (a seção some). */
 async function featuredCourses(): Promise<CourseView[]> {
@@ -58,6 +50,5 @@ async function featuredCourses(): Promise<CourseView[]> {
 }
 
 export default async function HomePage() {
-  const [signedIn, courses] = await Promise.all([isSignedIn(), featuredCourses()]);
-  return <LandingView signedIn={signedIn} courses={courses} />;
+  return <LandingView courses={await featuredCourses()} />;
 }

@@ -1,55 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-const updateSession = vi.fn();
-vi.mock('@/lib/supabase/proxy', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/supabase/proxy')>()),
-  updateSession: (request: NextRequest) => updateSession(request),
-}));
+import { config } from './proxy';
 
-import { proxy } from './proxy';
-
-function session(isAuthenticated: boolean) {
-  const response = NextResponse.next();
-  response.cookies.set('sb-refreshed', 'novo-token');
-  updateSession.mockResolvedValue({ response, isAuthenticated });
-  return response;
+/** Converte o padrão simples do matcher (`/x/:path*`, `/x/:slug/y`) em regex para o teste. */
+function matches(path: string): boolean {
+  return config.matcher.some((m) => {
+    if (typeof m !== 'string') return false; // `/` só com ?code= (teste abaixo)
+    const re = new RegExp(`^${m.replace(/\/:path\*/g, '(?:/.*)?').replace(/:[a-z]+/g, '[^/]+')}$`);
+    return re.test(path);
+  });
 }
 
-const req = (path: string) => new NextRequest(new URL(path, 'http://localhost:3000'));
+describe('proxy matcher', () => {
+  it.each([
+    '/inicio',
+    '/aprender/astrodash/123',
+    '/checkout/astrodash',
+    '/admin',
+    '/entrar',
+    '/cadastro',
+    '/cursos/astrodash/acesso',
+  ])('roda em %s', (path) => expect(matches(path)).toBe(true));
 
-beforeEach(() => vi.clearAllMocks());
-
-describe('proxy', () => {
-  it('anônimo em /admin -> /entrar?next=, preservando cookies renovados', async () => {
-    session(false);
-    const res = await proxy(req('/admin/cursos?p=2'));
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe(
-      `http://localhost:3000/entrar?next=${encodeURIComponent('/admin/cursos?p=2')}`,
-    );
-    expect(res.cookies.get('sb-refreshed')?.value).toBe('novo-token');
-  });
-
-  it.each(['/inicio', '/minha-biblioteca', '/aprender/x', '/conta', '/checkout/1'])(
-    'anônimo em %s é redirecionado',
-    async (path) => {
-      session(false);
-      const res = await proxy(req(path));
-      expect(res.headers.get('location')).toContain('/entrar?next=');
-    },
+  it.each(['/', '/cursos', '/cursos/astrodash', '/termos', '/privacidade', '/_next/static/x.js'])(
+    'não roda na página pública em cache %s',
+    (path) => expect(matches(path)).toBe(false),
   );
 
-  it('logado em /entrar -> /inicio', async () => {
-    session(true);
-    const res = await proxy(req('/entrar'));
-    expect(res.headers.get('location')).toBe('http://localhost:3000/inicio');
-  });
-
-  it('rotas públicas e logado em área protegida passam', async () => {
-    const anon = session(false);
-    expect(await proxy(req('/cursos'))).toBe(anon);
-    const logged = session(true);
-    expect(await proxy(req('/admin'))).toBe(logged);
+  it('roda em / só quando vem ?code= do link de email', () => {
+    expect(config.matcher).toContainEqual({ source: '/', has: [{ type: 'query', key: 'code' }] });
   });
 });

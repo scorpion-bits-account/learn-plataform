@@ -22,9 +22,26 @@ export async function proxy(request: NextRequest) {
   return session.response;
 }
 
+/**
+ * Só onde a sessão importa: rotas protegidas, telas de entrada e as páginas dinâmicas que
+ * leem a sessão no servidor. Páginas públicas em cache (landing, /cursos, /cursos/[slug],
+ * termos, privacidade) e estáticos ficam de fora: nenhum trabalho de auth por visita.
+ * Manter em sincronia com `PROTECTED_PREFIXES`/`GUEST_ONLY_PATHS` (src/lib/auth/routes.ts).
+ */
 export const config = {
   matcher: [
-    // Exclui estáticos, otimização de imagem, metadados, arquivos com extensão e o webhook (sem sessão).
-    '/((?!_next/static|_next/image|api/webhooks|favicon\\.ico|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|css|js|map|txt)$).*)',
+    // Link de email que caiu na Site URL com ?code= (encaminhado ao /auth/callback).
+    { source: '/', has: [{ type: 'query', key: 'code' }] },
+    '/inicio/:path*',
+    '/minha-biblioteca/:path*',
+    '/aprender/:path*',
+    '/conta/:path*',
+    '/checkout/:path*',
+    '/admin/:path*',
+    '/entrar',
+    '/cadastro',
+    '/redefinir-senha',
+    '/cursos/:slug/acesso',
+    '/previa/:path*',
   ],
 };
