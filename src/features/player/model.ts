@@ -193,7 +193,9 @@ export function buildVideoEmbed(
     if (!YOUTUBE_ID.test(videoId)) return null;
     return {
       providerLabel: 'YouTube',
-      src: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`,
+      // `vq=hd1080`: pedido de qualidade inicial. Não documentado, o YouTube pode ignorar;
+      // quem decide de fato é o tamanho do player (ver PlayerShell) e a conexão.
+      src: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&vq=hd1080`,
       thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     };
   }

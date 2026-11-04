@@ -93,8 +93,13 @@
 .main:focus {
   outline: none;
 }
+/*
+ * Largura do vídeo: o YouTube limita a qualidade pelo tamanho do player (até ~854 px de
+ * largura ele não passa de 480p). 1200 px deixa o player acima disso ao lado da ementa;
+ * no modo cinema (ementa oculta) ele cresce até 1600 px.
+ */
 .content {
-  width: min(960px, 100%);
+  width: min(1200px, 100%);
   min-width: 0;
   margin-inline: auto;
 }
@@ -115,8 +120,12 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
-  width: min(960px, 100%);
+  width: min(1200px, 100%);
   margin-inline: auto;
+}
+.shell[data-cinema] .content,
+.shell[data-cinema] .actionsInner {
+  width: min(1600px, 100%);
 }
 .actionsInner > * {
   min-width: 0;
