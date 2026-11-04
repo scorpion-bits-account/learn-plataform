@@ -50,7 +50,7 @@ function Description({ markdown }: { markdown: string | null }) {
   );
 }
 
-/** Prévia: logado abre no player (`/aprender`); visitante abre sem login (`/previa`). */
+/** Prévia exige conta: logado abre no player; visitante cria a conta e volta para a aula. */
 function Syllabus({
   slug,
   outline,
@@ -60,7 +60,10 @@ function Syllabus({
   outline: OutlineModule[];
   signedIn: boolean;
 }) {
-  const previewBase = signedIn ? '/aprender' : '/previa';
+  const previewHref = (lessonId: string) => {
+    const lessonPath = `/aprender/${slug}/${lessonId}`;
+    return signedIn ? lessonPath : `/cadastro?next=${encodeURIComponent(lessonPath)}`;
+  };
   return (
     <section aria-labelledby="ementa" className={styles.section}>
       <h2 id="ementa" className={styles.h2}>
@@ -107,7 +110,7 @@ function Syllabus({
                         <li key={lesson.id}>
                           {lesson.isPreview ? (
                             <Link
-                              href={`${previewBase}/${slug}/${lesson.id}`}
+                              href={previewHref(lesson.id)}
                               className={`${styles.lesson} ${styles.lessonLink}`}
                             >
                               {content}

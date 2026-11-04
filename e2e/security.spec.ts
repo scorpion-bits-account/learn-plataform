@@ -58,7 +58,7 @@ test.describe('segurança básica', () => {
     expect(data ?? []).toHaveLength(0);
   });
 
-  test('visitante assiste à prévia sem login; aula paga leva a "você ainda não comprou"', async ({
+  test('prévia exige conta; sem a compra, a tela de acesso leva ao cadastro e à compra', async ({
     page,
   }) => {
     const course = await createPublishedCourse({ lessonCount: 2, isPreview: true });
@@ -66,13 +66,16 @@ test.describe('segurança básica', () => {
       (typeof course.lessons)[number],
       (typeof course.lessons)[number],
     ];
+    const previewPath = `/aprender/${course.slug}/${preview.id}`;
 
+    // Link antigo de prévia: visitante vai criar a conta e volta para a aula.
     await page.goto(`/previa/${course.slug}/${preview.id}`);
-    await expect(page.getByText(preview.body)).toBeVisible();
-    await expectNoHorizontalOverflow(page, 'prévia sem login');
+    await expect(page).toHaveURL(/\/cadastro\?next=/);
+    expect(new URL(page.url()).searchParams.get('next')).toBe(previewPath);
+    expect(await page.content()).not.toContain(preview.body);
 
-    await page.goto(`/previa/${course.slug}/${paid.id}`);
-    await expect(page).toHaveURL(new RegExp(`/cursos/${course.slug}/acesso$`));
+    // Tela "você ainda não comprou" (destino dos materiais bloqueados), visitante.
+    await page.goto(`/cursos/${course.slug}/acesso`);
     await expect(
       page.getByRole('heading', { level: 1, name: 'Você ainda não comprou este curso' }),
     ).toBeVisible();
@@ -82,5 +85,11 @@ test.describe('segurança básica', () => {
       `/cadastro?next=${encodeURIComponent(`/checkout/${course.slug}`)}`,
     );
     await expectNoHorizontalOverflow(page, 'tela de acesso');
+
+    // Logado sem a compra: a tela de acesso manda direto para a compra.
+    const student = await createUser({ prefix: 'gate' });
+    await signIn(page, student);
+    await page.goto(`/cursos/${course.slug}/acesso`);
+    await expect(page).toHaveURL(new RegExp(`/checkout/${course.slug}$`));
   });
 });

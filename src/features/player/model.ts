@@ -233,14 +233,29 @@ export type PlayerMaterial =
    */
   | { id: string; type: 'locked'; kind: 'file' | 'link'; title: string | null };
 
+/** Links que ficam abertos mesmo sem a compra: perfis e site da Scorpion Bits (decisão do produto). */
+const OPEN_LINK_DOMAINS = ['instagram.com', 'scorpionbits.com'] as const;
+
+/** `true` se o link é do Instagram ou do site da Scorpion Bits (domínio ou subdomínio). */
+export function isOpenLink(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return OPEN_LINK_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
 /**
  * Sem acesso ao curso (prévia), arquivos e links viram itens bloqueados: o vídeo e o texto da
- * aula de prévia continuam abertos. Com acesso, a lista volta intacta.
+ * aula de prévia continuam abertos, e links do Instagram/site também. Com acesso (comprou o
+ * curso, ou admin), a lista volta intacta.
  */
 export function lockForPreview(materials: PlayerMaterial[], hasAccess: boolean): PlayerMaterial[] {
   if (hasAccess) return materials;
   return materials.map((m) =>
-    m.type === 'file' || m.type === 'link'
+    m.type === 'file' || (m.type === 'link' && !isOpenLink(m.url))
       ? { id: m.id, type: 'locked', kind: m.type, title: m.title }
       : m,
   );
