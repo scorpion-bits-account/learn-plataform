@@ -15,8 +15,10 @@ test.describe('visitante', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Cursos de game dev' })).toBeVisible();
     await expectNoHorizontalOverflow(page, '/cursos');
 
-    await page.getByRole('link', { name: course.title }).first().click();
-    await expect(page).toHaveURL(new RegExp(`/cursos/${course.slug}$`));
+    // /cursos fica em cache (ISR): um curso inserido direto no banco, como esta fixture, só
+    // entra na listagem quando o admin salva (revalidatePath, coberto em admin-course.spec)
+    // ou após 5 min. A página do curso é gerada na primeira visita.
+    await visit(page, `/cursos/${course.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: course.title })).toBeVisible();
     // O preço aparece no card lateral (desktop) e na barra fixa (celular): vale o visível.
     await expect(page.getByText('R$').locator('visible=true').first()).toBeVisible();
