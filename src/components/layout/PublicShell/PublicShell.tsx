@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Dock, Logo } from '@/components/brand';
 import { Button } from '@/components/ui';
 import { company, whatsappUrl } from '@/config/company';
+import { AuthSwitch } from '@/features/viewer/ViewerProvider';
 
 import { ActiveDockLink } from '../NavLinks';
 import { SkipLink } from '../SkipLink/SkipLink';
@@ -13,13 +14,41 @@ import type { ShellUser } from '../types';
 import styles from './PublicShell.module.css';
 
 export interface PublicShellProps {
-  /** Usuário logado (quando houver): troca "Entrar/Criar conta" por "Minha biblioteca". */
+  /**
+   * Usuário logado: troca "Entrar/Criar conta" por "Minha biblioteca".
+   * `undefined` (páginas públicas em cache) = decidido no navegador pelo `ViewerProvider`.
+   */
   user?: ShellUser | null;
   children: ReactNode;
 }
 
 /** Páginas públicas: Dock + <main> + rodapé institucional. */
+const libraryAction = (
+  <Button href="/minha-biblioteca" size="sm">
+    Minha biblioteca
+  </Button>
+);
+
+const guestActions = (
+  <>
+    <Button href="/entrar" variant="ghost" size="sm">
+      Entrar
+    </Button>
+    <Button href="/cadastro" size="sm">
+      Criar conta
+    </Button>
+  </>
+);
+
 export function PublicShell({ user, children }: PublicShellProps) {
+  const actions =
+    user === undefined ? (
+      <AuthSwitch signedIn={libraryAction} guest={guestActions} />
+    ) : user ? (
+      libraryAction
+    ) : (
+      guestActions
+    );
   return (
     <div className={styles.shell}>
       <SkipLink />
@@ -32,22 +61,7 @@ export function PublicShell({ user, children }: PublicShellProps) {
             <ActiveDockLink href="/#estudio">Sobre</ActiveDockLink>
           </>
         }
-        actions={
-          user ? (
-            <Button href="/minha-biblioteca" size="sm">
-              Minha biblioteca
-            </Button>
-          ) : (
-            <>
-              <Button href="/entrar" variant="ghost" size="sm">
-                Entrar
-              </Button>
-              <Button href="/cadastro" size="sm">
-                Criar conta
-              </Button>
-            </>
-          )
-        }
+        actions={actions}
       />
       <main id={MAIN_ID} tabIndex={-1} className={styles.main}>
         {children}

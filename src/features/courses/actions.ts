@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { ActionError, adminAction } from '@/lib/auth/actions';
+import { revalidatePublicPages } from '@/lib/cache/public-pages';
 import { createClient } from '@/lib/supabase/server';
 
 import { COVERS_BUCKET_NAME, publishBlockers } from './rules';
@@ -46,6 +47,7 @@ export const createCourse = adminAction(createCourseSchema, async (input, { user
     .single();
   if (error) throwFriendly(error);
   revalidatePath('/admin/cursos');
+  revalidatePublicPages();
   return { id: data.id };
 });
 
@@ -84,6 +86,7 @@ export const updateCourse = adminAction(updateCourseSchema, async (input) => {
   }
 
   revalidatePath('/admin/cursos');
+  revalidatePublicPages();
   revalidatePath(`/admin/cursos/${input.id}`);
   return { id: input.id };
 });
@@ -125,6 +128,7 @@ export const setCourseStatus = adminAction(setCourseStatusSchema, async ({ id, s
   if (!data) throw new ActionError('Curso não encontrado.');
 
   revalidatePath('/admin/cursos');
+  revalidatePublicPages();
   revalidatePath(`/admin/cursos/${id}`);
   return { id, status, label: STATUS_LABELS[status] };
 });

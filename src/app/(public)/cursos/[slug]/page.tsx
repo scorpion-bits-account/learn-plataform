@@ -1,16 +1,23 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { CourseView } from '@/features/catalog/components/CourseView';
+import { CourseViewLive } from '@/features/catalog/components/CourseViewLive';
 import { descriptionToBlocks } from '@/features/catalog/model';
 import { withCover } from '@/features/catalog/presenters';
-import { getCoursePage, getPublishedCourse } from '@/features/catalog/queries';
+import { getCoursePage, getPublicCourse, getPublishedSlugs } from '@/features/catalog/queries';
 
 type Params = Promise<{ slug: string }>;
 
+/** Igual para todos: cache de 5 min; cursos publicados saem prontos do build. */
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  return (await getPublishedSlugs()).map((slug) => ({ slug }));
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const course = await getPublishedCourse(slug);
+  const course = await getPublicCourse(slug);
   if (!course) return { title: 'Curso não encontrado', robots: { index: false } };
 
   const { coverUrl } = withCover(course);
@@ -46,12 +53,5 @@ export default async function CoursePage({ params }: { params: Params }) {
   const data = await getCoursePage(slug);
   if (!data) notFound();
 
-  return (
-    <CourseView
-      course={withCover(data.course)}
-      outline={data.outline}
-      signedIn={data.signedIn}
-      hasAccess={data.hasAccess}
-    />
-  );
+  return <CourseViewLive course={withCover(data.course)} outline={data.outline} />;
 }

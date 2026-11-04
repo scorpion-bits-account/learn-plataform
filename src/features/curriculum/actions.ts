@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { ActionError, adminAction } from '@/lib/auth/actions';
+import { revalidatePublicPages } from '@/lib/cache/public-pages';
 import { createClient } from '@/lib/supabase/server';
 import type { Database } from '@/types/database';
 
@@ -41,6 +42,7 @@ function throwFriendly(error: NonNullable<DbError>, fallback: string): never {
 }
 
 function refresh() {
+  revalidatePublicPages();
   revalidatePath('/admin/cursos/[id]', 'page');
 }
 
