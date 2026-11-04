@@ -93,6 +93,11 @@
   font-size: var(--s--1);
 }
 
+.freeMobile {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
 .help,
 .helpMobile {
   color: var(--text-soft);
@@ -325,7 +330,8 @@
 
 @media (min-width: 720px) {
   .bar,
-  .helpMobile {
+  .helpMobile,
+  .freeMobile {
     display: none;
   }
 

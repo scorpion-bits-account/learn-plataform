@@ -51,6 +51,11 @@ function Description({ markdown }: { markdown: string | null }) {
 }
 
 /** Prévia exige conta: logado abre no player; visitante cria a conta e volta para a aula. */
+function previewLessonHref(slug: string, lessonId: string, signedIn: boolean): string {
+  const lessonPath = `/aprender/${slug}/${lessonId}`;
+  return signedIn ? lessonPath : `/cadastro?next=${encodeURIComponent(lessonPath)}`;
+}
+
 function Syllabus({
   slug,
   outline,
@@ -60,10 +65,7 @@ function Syllabus({
   outline: OutlineModule[];
   signedIn: boolean;
 }) {
-  const previewHref = (lessonId: string) => {
-    const lessonPath = `/aprender/${slug}/${lessonId}`;
-    return signedIn ? lessonPath : `/cadastro?next=${encodeURIComponent(lessonPath)}`;
-  };
+  const previewHref = (lessonId: string) => previewLessonHref(slug, lessonId, signedIn);
   return (
     <section aria-labelledby="ementa" className={styles.section}>
       <h2 id="ementa" className={styles.h2}>
@@ -240,6 +242,10 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
   const cta = resolveCta(course.slug, signedIn, hasAccess);
   const duration = formatDuration(course.durationSeconds);
   const price = formatPrice(course.priceCents);
+  // Primeira aula de prévia: "Assistir aula grátis" (cadastro leva direto para ela).
+  const firstPreview = outline.flatMap((m) => m.lessons).find((l) => l.isPreview);
+  const freeHref =
+    !hasAccess && firstPreview ? previewLessonHref(course.slug, firstPreview.id, signedIn) : null;
 
   return (
     <div className={styles.page}>
@@ -271,6 +277,11 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
               <li>{pluralLessons(course.lessonCount)}</li>
               {duration && <li>{duration}</li>}
             </ul>
+            {freeHref && (
+              <Button href={freeHref} variant="secondary" size="lg" className={styles.freeMobile}>
+                Assistir aula grátis
+              </Button>
+            )}
             {!hasAccess && <WhatsAppHelp title={course.title} className={styles.helpMobile} />}
           </div>
         </header>
@@ -285,6 +296,11 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
             <Button href={cta.href} size="lg" fullWidth>
               {cta.label}
             </Button>
+            {freeHref && (
+              <Button href={freeHref} variant="secondary" size="lg" fullWidth>
+                Assistir aula grátis
+              </Button>
+            )}
             {(cta.kind === 'buy' || cta.kind === 'sign-up') && (
               <p className={styles.note}>
                 Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
