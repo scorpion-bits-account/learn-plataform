@@ -6,6 +6,16 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100dvh;
   overflow: hidden;
+  /* `clip` não é um contêiner de rolagem: foco/scrollIntoView (ex.: o h1 da aula) não
+     conseguem deslocar o shell e "quebrar" a tela (visto no Firefox). */
+  overflow: clip;
+}
+
+/* Com o player na tela, a página em si nunca rola: só a área de conteúdo e a ementa. */
+:global(html):has(.shell),
+:global(body):has(.shell) {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .top {

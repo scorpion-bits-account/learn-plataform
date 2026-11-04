@@ -12,6 +12,7 @@ export default async function CadastroPage({ searchParams }: { searchParams: Sea
   const { next } = await searchParams;
   const safeNext = typeof next === 'string' ? sanitizeNextPath(next, '') || undefined : undefined;
   const buying = safeNext?.startsWith('/checkout/') ?? false;
+  const preview = safeNext?.startsWith('/aprender/') ?? false;
 
   return (
     <AuthCard
@@ -19,7 +20,9 @@ export default async function CadastroPage({ searchParams }: { searchParams: Sea
       lead={
         buying
           ? 'Crie sua conta para concluir a compra. Leva menos de um minuto.'
-          : 'Comece a aprender a criar jogos.'
+          : preview
+            ? 'Crie sua conta grátis para assistir à prévia do curso.'
+            : 'Comece a aprender a criar jogos.'
       }
     >
       <SignUpForm next={safeNext} />

@@ -441,4 +441,24 @@ describe('lockForPreview', () => {
     expect(out[3]).toEqual({ id: 'l', type: 'locked', kind: 'link', title: null });
     expect(JSON.stringify(out)).not.toMatch(/slides\.dev|p\.zip/);
   });
+
+  it('sem acesso: links do Instagram e do site da Scorpion Bits continuam abertos', () => {
+    const links: PlayerMaterial[] = [
+      { id: 'i', type: 'link', title: null, url: 'https://www.instagram.com/scorpionbits_' },
+      { id: 's', type: 'link', title: null, url: 'https://scorpionbits.com/' },
+      {
+        id: 'g',
+        type: 'link',
+        title: 'Material',
+        url: 'https://scorpion-bits-account.github.io/mini-curso-astrodash/',
+      },
+      { id: 'x', type: 'link', title: null, url: 'https://scorpionbits.com.evil.dev/' },
+    ];
+    expect(lockForPreview(links, false).map((m) => m.type)).toEqual([
+      'link',
+      'link',
+      'locked',
+      'locked',
+    ]);
+  });
 });
