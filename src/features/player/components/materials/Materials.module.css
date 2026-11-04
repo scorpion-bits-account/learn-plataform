@@ -206,6 +206,10 @@
 .linkCard:hover {
   border-color: var(--cyan);
 }
+.lockedCard .cardIcon {
+  background: var(--tint-amber);
+  color: var(--amber);
+}
 .cardIcon {
   display: grid;
   place-items: center;

@@ -226,7 +226,25 @@ export type PlayerMaterial =
       fileSize: number | null;
       mimeType: string | null;
     }
-  | { id: string; type: 'link'; title: string | null; url: string };
+  | { id: string; type: 'link'; title: string | null; url: string }
+  /**
+   * Arquivo/link de quem ainda não comprou (aula de prévia): só o título vai ao navegador;
+   * o clique leva para `/cursos/[slug]/acesso`. Ver `lockForPreview`.
+   */
+  | { id: string; type: 'locked'; kind: 'file' | 'link'; title: string | null };
+
+/**
+ * Sem acesso ao curso (prévia), arquivos e links viram itens bloqueados: o vídeo e o texto da
+ * aula de prévia continuam abertos. Com acesso, a lista volta intacta.
+ */
+export function lockForPreview(materials: PlayerMaterial[], hasAccess: boolean): PlayerMaterial[] {
+  if (hasAccess) return materials;
+  return materials.map((m) =>
+    m.type === 'file' || m.type === 'link'
+      ? { id: m.id, type: 'locked', kind: m.type, title: m.title }
+      : m,
+  );
+}
 
 export type MaterialRow = {
   id: string;

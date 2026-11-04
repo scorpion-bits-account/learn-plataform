@@ -75,6 +75,8 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     };
   }
   const { full_name, email, password } = parsed.data;
+  // Volta para onde a pessoa estava (ex.: a compra do curso). Sempre path interno.
+  const next = sanitizeNextPath(str(formData, 'next'));
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -82,7 +84,7 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     password,
     options: {
       data: { full_name }, // somente o nome; o papel é sempre `student` (trigger)
-      emailRedirectTo: `${getClientEnv().NEXT_PUBLIC_SITE_URL}/auth/callback?next=/inicio`,
+      emailRedirectTo: `${getClientEnv().NEXT_PUBLIC_SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 
@@ -99,7 +101,7 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
   }
 
   // Confirmação de email desligada: já há sessão.
-  if (data.session) redirect('/inicio');
+  if (data.session) redirect(next);
 
   // Com confirmação ligada, email já cadastrado também cai aqui (Supabase não revela).
   return {

@@ -55,7 +55,10 @@ export function SignInForm({ next, notice }: { next?: string; notice?: string })
       <div className={styles.links}>
         <TextLink href="/recuperar-senha">Esqueci minha senha</TextLink>
         <span>
-          Novo por aqui? <TextLink href="/cadastro">Criar conta</TextLink>
+          Novo por aqui?{' '}
+          <TextLink href={next ? `/cadastro?next=${encodeURIComponent(next)}` : '/cadastro'}>
+            Criar conta
+          </TextLink>
         </span>
       </div>
     </form>

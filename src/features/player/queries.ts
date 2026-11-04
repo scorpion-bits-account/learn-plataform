@@ -11,6 +11,7 @@ import {
   buildCourseMaterials,
   canOpenLesson,
   flattenOutline,
+  lockForPreview,
   mapMaterialRow,
   resolveResumeLessonId,
 } from './model';
@@ -68,20 +69,28 @@ async function getPlayerCourse(slug: string): Promise<PlayerCourse | null> {
   };
 }
 
-async function loadCourseContext(slug: string, userId: string): Promise<CourseContext | null> {
+/** `userId` nulo = visitante na prévia: sem acesso nem progresso (nem consulta). */
+async function loadCourseContext(
+  slug: string,
+  userId: string | null,
+): Promise<CourseContext | null> {
   const course = await getPlayerCourse(slug);
   if (!course) return null;
 
   const supabase = await createClient();
   const [outlineRes, accessRes, progressRes] = await Promise.all([
     supabase.from('course_outline').select('*').eq('course_id', course.id),
-    supabase.rpc('has_course_access', { p_course_id: course.id }),
+    userId
+      ? supabase.rpc('has_course_access', { p_course_id: course.id })
+      : Promise.resolve({ data: false, error: null }),
     // `user_id` explícito: a RLS deixa o admin ler o progresso de todos.
-    supabase
-      .from('lesson_progress')
-      .select('lesson_id, completed_at, updated_at')
-      .eq('course_id', course.id)
-      .eq('user_id', userId),
+    userId
+      ? supabase
+          .from('lesson_progress')
+          .select('lesson_id, completed_at, updated_at')
+          .eq('course_id', course.id)
+          .eq('user_id', userId)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (outlineRes.error) throw new Error('Não foi possível carregar a ementa.');
   if (accessRes.error) throw new Error('Não foi possível verificar o acesso ao curso.');
@@ -141,9 +150,10 @@ export type PlayerPageData = {
 /**
  * Tudo que a página da aula precisa. `null` (-> 404) se o curso não existe/não é visível
  * ou a aula não pertence a ele. Memoizado por request (metadata + página).
+ * `userId` nulo = visitante (prévia sem login). Sem acesso, arquivos e links vêm bloqueados.
  */
 export const getPlayerPage = cache(
-  async (slug: string, lessonId: string, userId: string): Promise<PlayerPageData | null> => {
+  async (slug: string, lessonId: string, userId: string | null): Promise<PlayerPageData | null> => {
     if (!lessonIdSchema.safeParse(lessonId).success) return null;
 
     const ctx = await loadCourseContext(slug, userId);
@@ -166,7 +176,7 @@ export const getPlayerPage = cache(
       canOpen,
       completedIds: ctx.progress.filter((p) => p.completedAt).map((p) => p.lessonId),
       ...(canOpen
-        ? await getMaterialsFor(ctx.course.id, lesson.id, ctx.lessons)
+        ? await getMaterialsFor(ctx.course.id, lesson.id, ctx.lessons, ctx.hasAccess)
         : { materials: [], courseMaterials: [] }),
     };
   },
@@ -184,6 +194,7 @@ async function getMaterialsFor(
   courseId: string,
   lessonId: string,
   lessons: FlatLesson[],
+  hasAccess: boolean,
 ): Promise<{ materials: PlayerMaterial[]; courseMaterials: PlayerMaterial[] }> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -198,11 +209,17 @@ async function getMaterialsFor(
     .filter((row) => row.lesson_id === lessonId)
     .sort((a, b) => a.position - b.position);
   return {
-    materials: own.map(mapMaterialRow).filter((m): m is PlayerMaterial => m !== null),
-    courseMaterials: buildCourseMaterials(
-      rows.filter((row) => row.show_in_all_lessons),
-      lessons,
-      lessonId,
+    materials: lockForPreview(
+      own.map(mapMaterialRow).filter((m): m is PlayerMaterial => m !== null),
+      hasAccess,
+    ),
+    courseMaterials: lockForPreview(
+      buildCourseMaterials(
+        rows.filter((row) => row.show_in_all_lessons),
+        lessons,
+        lessonId,
+      ),
+      hasAccess,
     ),
   };
 }

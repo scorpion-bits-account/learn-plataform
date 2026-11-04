@@ -119,7 +119,7 @@ describe('FileMaterial', () => {
 
 describe('Materials', () => {
   it('sem materiais: estado vazio', () => {
-    render(<Materials materials={[]} />);
+    render(<Materials materials={[]} lockedHref="/cursos/x/acesso" />);
     expect(screen.getByRole('heading', { name: /ainda não tem materiais/ })).toBeInTheDocument();
   });
 
@@ -130,9 +130,22 @@ describe('Materials', () => {
           { id: 'a', type: 'text', title: 'Resumo', body: 'oi' },
           { id: 'b', type: 'link', title: null, url: 'https://a.dev/' },
         ]}
+        lockedHref="/cursos/x/acesso"
       />,
     );
     expect(screen.getByRole('region', { name: 'Resumo' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Link' })).toBeInTheDocument();
+  });
+
+  it('material bloqueado da prévia leva à tela de compra, sem o endereço real', () => {
+    render(
+      <Materials
+        materials={[{ id: 'c', type: 'locked', kind: 'file', title: 'Projeto final' }]}
+        lockedHref="/cursos/astrodash/acesso"
+      />,
+    );
+    const link = screen.getByRole('link', { name: /Projeto final/ });
+    expect(link).toHaveAttribute('href', '/cursos/astrodash/acesso');
+    expect(link).toHaveTextContent('Disponível para quem comprou o curso');
   });
 });

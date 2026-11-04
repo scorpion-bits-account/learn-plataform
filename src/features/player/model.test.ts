@@ -10,6 +10,7 @@ import {
   displayHost,
   flattenOutline,
   formatFileSize,
+  lockForPreview,
   mapMaterialRow,
   resolveNeighbors,
   resolveResumeLessonId,
@@ -17,7 +18,7 @@ import {
   shortcutAction,
   tokenizeInline,
 } from './model';
-import type { CourseMaterialRow, MaterialRow, ShortcutEventLike } from './model';
+import type { CourseMaterialRow, MaterialRow, PlayerMaterial, ShortcutEventLike } from './model';
 
 const lesson = (id: string, isPreview = false) => ({
   id,
@@ -418,5 +419,26 @@ describe('shortcutAction', () => {
   it('outras teclas não fazem nada', () => {
     expect(shortcutAction(key('a'))).toBeNull();
     expect(shortcutAction(key('{', { shiftKey: true }))).toBeNull();
+  });
+});
+
+describe('lockForPreview', () => {
+  const materials: PlayerMaterial[] = [
+    { id: 'v', type: 'video', title: 'Aula', provider: 'youtube', videoId: 'abc' },
+    { id: 't', type: 'text', title: null, body: 'oi' },
+    { id: 'f', type: 'file', title: 'Projeto', fileName: 'p.zip', fileSize: 10, mimeType: null },
+    { id: 'l', type: 'link', title: null, url: 'https://slides.dev/' },
+  ];
+
+  it('com acesso (comprou o curso): devolve tudo intacto', () => {
+    expect(lockForPreview(materials, true)).toBe(materials);
+  });
+
+  it('sem acesso: vídeo e texto abertos; arquivo e link bloqueados, sem endereço', () => {
+    const out = lockForPreview(materials, false);
+    expect(out.map((m) => m.type)).toEqual(['video', 'text', 'locked', 'locked']);
+    expect(out[2]).toEqual({ id: 'f', type: 'locked', kind: 'file', title: 'Projeto' });
+    expect(out[3]).toEqual({ id: 'l', type: 'locked', kind: 'link', title: null });
+    expect(JSON.stringify(out)).not.toMatch(/slides\.dev|p\.zip/);
   });
 });

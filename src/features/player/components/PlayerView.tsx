@@ -93,7 +93,11 @@ export function PlayerView({
         </header>
 
         {canOpen ? (
-          <Materials materials={materials} courseMaterials={courseMaterials} />
+          <Materials
+            materials={materials}
+            courseMaterials={courseMaterials}
+            lockedHref={`${courseHref}/acesso`}
+          />
         ) : (
           <EmptyState
             illustration={<LockIcon />}

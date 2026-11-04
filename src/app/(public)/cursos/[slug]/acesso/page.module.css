@@ -1,0 +1,52 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding-block: var(--space-7);
+}
+.card {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 32rem;
+}
+.kicker {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: var(--s--1);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+}
+.title {
+  font-family: var(--font-display);
+  font-size: var(--s-3);
+  line-height: 1.1;
+}
+.lead {
+  color: var(--text-soft);
+}
+.price {
+  display: grid;
+  font-family: var(--font-display);
+  font-size: var(--s-3);
+  font-weight: 700;
+}
+.priceLabel {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--s--1);
+  font-weight: 400;
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+}
+.actions {
+  display: grid;
+  gap: var(--space-3);
+}
+.note {
+  color: var(--text-dim);
+  font-size: var(--s--1);
+}
+.back {
+  font-size: var(--s--1);
+}

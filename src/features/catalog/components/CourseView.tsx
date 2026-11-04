@@ -50,7 +50,17 @@ function Description({ markdown }: { markdown: string | null }) {
   );
 }
 
-function Syllabus({ slug, outline }: { slug: string; outline: OutlineModule[] }) {
+/** Prévia: logado abre no player (`/aprender`); visitante abre sem login (`/previa`). */
+function Syllabus({
+  slug,
+  outline,
+  signedIn,
+}: {
+  slug: string;
+  outline: OutlineModule[];
+  signedIn: boolean;
+}) {
+  const previewBase = signedIn ? '/aprender' : '/previa';
   return (
     <section aria-labelledby="ementa" className={styles.section}>
       <h2 id="ementa" className={styles.h2}>
@@ -97,7 +107,7 @@ function Syllabus({ slug, outline }: { slug: string; outline: OutlineModule[] })
                         <li key={lesson.id}>
                           {lesson.isPreview ? (
                             <Link
-                              href={`/aprender/${slug}/${lesson.id}`}
+                              href={`${previewBase}/${slug}/${lesson.id}`}
                               className={`${styles.lesson} ${styles.lessonLink}`}
                             >
                               {content}
@@ -185,7 +195,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
             <Button href={cta.href} size="lg" fullWidth>
               {cta.label}
             </Button>
-            {cta.kind === 'buy' && (
+            {(cta.kind === 'buy' || cta.kind === 'sign-up') && (
               <p className={styles.note}>
                 Pagamento por PIX ou cartão. Acesso liberado após a confirmação.
               </p>
@@ -196,7 +206,7 @@ export function CourseView({ course, outline, signedIn, hasAccess }: CourseViewP
 
         <div className={styles.content}>
           <Description markdown={course.description} />
-          <Syllabus slug={course.slug} outline={outline} />
+          <Syllabus slug={course.slug} outline={outline} signedIn={signedIn} />
         </div>
       </div>
 
