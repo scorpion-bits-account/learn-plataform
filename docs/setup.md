@@ -35,7 +35,11 @@ Guia passo a passo para o responsável do projeto. Leva ~30 min. Nenhuma chave s
    - *Site URL*: a URL da Vercel (passo 2), ex. `https://learn-plataform.vercel.app`
    - *Redirect URLs*: `https://<sua-url>.vercel.app/auth/callback`, `https://*-<seu-time>.vercel.app/auth/callback` (previews) e `http://localhost:3000/auth/callback`
 5. **Auth → Providers → Email**: senha mínima 8; "Confirm email" ligado.
-6. **Auth → Email Templates**: traduza "Confirm signup" e "Reset password" para pt-BR (mantenha `{{ .ConfirmationURL }}`).
+6. **Auth → Email Templates** (pt-BR). Use **`token_hash`** no link, e **não** `{{ .ConfirmationURL }}`: o link padrão é PKCE e só funciona no mesmo navegador que pediu o email (pedir no computador e abrir no celular dá "link inválido"). O `/auth/callback` aceita os dois formatos.
+   - *Confirm signup*: `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/inicio`
+   - *Reset password*: `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/redefinir-senha`
+   - O *Site URL* (item 4) precisa ser o domínio de produção (`https://learn.scorpionbits.com`).
+   - **SMTP próprio** (*Auth → Emails → SMTP Settings*): Resend (`smtp.resend.com`, porta 465, usuário `resend`, senha = API key com *Sending access*), remetente `nao-responda@scorpionbits.com` com o domínio verificado na Resend. Suba o *Rate limit* de emails (*Auth → Rate Limits*) para ~100/h.
 7. **Project Settings → API Keys**: copie a *Project URL*, a *Publishable key* e a *Secret key* (esta é secreta).
 
 ### Criar o primeiro admin

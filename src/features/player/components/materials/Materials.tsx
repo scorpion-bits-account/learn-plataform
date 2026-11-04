@@ -4,6 +4,7 @@ import type { PlayerMaterial } from '../../model';
 
 import { FileMaterial } from './FileMaterial';
 import { LinkMaterial } from './LinkMaterial';
+import { LockedMaterial } from './LockedMaterial';
 import { TextMaterial } from './TextMaterial';
 import { VideoMaterial } from './VideoMaterial';
 import styles from './Materials.module.css';
@@ -13,11 +14,20 @@ const DEFAULT_TITLE = {
   text: 'Texto',
   file: 'Arquivo',
   link: 'Link',
+  locked: 'Material do curso',
 } as const;
 
 type Level = 2 | 3;
 
-function MaterialList({ materials, level }: { materials: PlayerMaterial[]; level: Level }) {
+function MaterialList({
+  materials,
+  level,
+  lockedHref,
+}: {
+  materials: PlayerMaterial[];
+  level: Level;
+  lockedHref: string;
+}) {
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <div className={styles.list}>
@@ -46,6 +56,8 @@ function MaterialList({ materials, level }: { materials: PlayerMaterial[]; level
                 fileName={material.fileName}
                 fileSize={material.fileSize}
               />
+            ) : material.type === 'locked' ? (
+              <LockedMaterial kind={material.kind} title={material.title} href={lockedHref} />
             ) : (
               <LinkMaterial url={material.url} title={material.title} />
             )}
@@ -64,16 +76,19 @@ function MaterialList({ materials, level }: { materials: PlayerMaterial[]; level
 export function Materials({
   materials,
   courseMaterials = [],
+  lockedHref,
 }: {
   materials: PlayerMaterial[];
   courseMaterials?: PlayerMaterial[];
+  /** Destino dos materiais bloqueados da prévia (`/cursos/[slug]/acesso`). */
+  lockedHref: string;
 }) {
   const hasCourse = courseMaterials.length > 0;
 
   return (
     <>
       {materials.length > 0 ? (
-        <MaterialList materials={materials} level={2} />
+        <MaterialList materials={materials} level={2} lockedHref={lockedHref} />
       ) : !hasCourse ? (
         <EmptyState
           headingLevel={2}
@@ -87,7 +102,7 @@ export function Materials({
             Materiais do curso
           </h2>
           <p className={styles.courseHint}>Disponíveis em todas as aulas.</p>
-          <MaterialList materials={courseMaterials} level={3} />
+          <MaterialList materials={courseMaterials} level={3} lockedHref={lockedHref} />
         </section>
       ) : null}
     </>

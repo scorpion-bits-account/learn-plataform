@@ -119,7 +119,27 @@ describe('signUp', () => {
     const arg = auth.signUp.mock.calls[0]![0];
     expect(arg.options.data).toEqual({ full_name: 'Ana' });
     expect(JSON.stringify(arg)).not.toMatch(/role/);
-    expect(arg.options.emailRedirectTo).toBe('https://learn.test/auth/callback?next=/inicio');
+    expect(arg.options.emailRedirectTo).toBe('https://learn.test/auth/callback?next=%2Finicio');
+  });
+
+  it('volta para a compra: next interno vai no link do email e no redirect com sessão', async () => {
+    auth.signUp.mockResolvedValueOnce({ data: { session: null }, error: null });
+    await signUp(IDLE_STATE, form({ ...valid, next: '/checkout/astrodash' }));
+    expect(auth.signUp.mock.calls[0]![0].options.emailRedirectTo).toBe(
+      'https://learn.test/auth/callback?next=%2Fcheckout%2Fastrodash',
+    );
+
+    auth.signUp.mockResolvedValueOnce({ data: { session: {} }, error: null });
+    expect(
+      await redirectTarget(signUp(IDLE_STATE, form({ ...valid, next: '/checkout/astrodash' }))),
+    ).toBe('/checkout/astrodash');
+  });
+
+  it('next externo é ignorado (sem open redirect)', async () => {
+    auth.signUp.mockResolvedValueOnce({ data: { session: {} }, error: null });
+    expect(
+      await redirectTarget(signUp(IDLE_STATE, form({ ...valid, next: 'https://evil.test' }))),
+    ).toBe('/inicio');
   });
 
   it('sem sessão mostra "Confira seu email" (não finge login)', async () => {

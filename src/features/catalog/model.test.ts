@@ -153,10 +153,11 @@ describe('descriptionToBlocks', () => {
 });
 
 describe('resolveCta', () => {
-  it('anonymous -> sign in with encoded next', () => {
+  it('anonymous -> sign up, then straight to checkout', () => {
     expect(resolveCta('godot', false, false)).toMatchObject({
-      kind: 'sign-in',
-      href: '/entrar?next=%2Fcursos%2Fgodot',
+      kind: 'sign-up',
+      href: '/cadastro?next=%2Fcheckout%2Fgodot',
+      label: 'Comprar',
     });
   });
   it('signed in without access -> checkout', () => {

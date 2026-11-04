@@ -22,13 +22,15 @@ test.describe('visitante', () => {
     await expect(page.getByText('R$').locator('visible=true').first()).toBeVisible();
     await expectNoHorizontalOverflow(page, `/cursos/${course.slug}`);
 
-    // Visitante: o CTA de compra manda para o login, voltando ao curso depois.
-    await visibleLink(page, 'Entrar para comprar').click();
-    await expect(page).toHaveURL(/\/entrar\?next=/);
-    expect(decodeURIComponent(new URL(page.url()).searchParams.get('next') ?? '')).toBe(
-      `/cursos/${course.slug}`,
+    // Visitante: "Comprar" leva ao cadastro e, depois dele, direto para a compra.
+    await visibleLink(page, 'Comprar').click();
+    await expect(page).toHaveURL(/\/cadastro\?next=/);
+    expect(new URL(page.url()).searchParams.get('next')).toBe(`/checkout/${course.slug}`);
+    await expect(page.locator('form').getByRole('link', { name: 'Entrar' })).toHaveAttribute(
+      'href',
+      `/entrar?next=${encodeURIComponent(`/checkout/${course.slug}`)}`,
     );
-    await expectNoHorizontalOverflow(page, '/entrar');
+    await expectNoHorizontalOverflow(page, '/cadastro');
   });
 
   test('telas públicas não rolam na horizontal', async ({ page }) => {

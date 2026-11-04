@@ -2,13 +2,27 @@ import type { Metadata } from 'next';
 
 import { AuthCard } from '@/features/auth/components/AuthCard';
 import { SignUpForm } from '@/features/auth/components/SignUpForm';
+import { sanitizeNextPath } from '@/lib/auth/redirect';
 
 export const metadata: Metadata = { title: 'Criar conta' };
 
-export default function CadastroPage() {
+type Search = Promise<{ next?: string | string[] }>;
+
+export default async function CadastroPage({ searchParams }: { searchParams: Search }) {
+  const { next } = await searchParams;
+  const safeNext = typeof next === 'string' ? sanitizeNextPath(next, '') || undefined : undefined;
+  const buying = safeNext?.startsWith('/checkout/') ?? false;
+
   return (
-    <AuthCard title="Criar conta" lead="Comece a aprender a criar jogos.">
-      <SignUpForm />
+    <AuthCard
+      title="Criar conta"
+      lead={
+        buying
+          ? 'Crie sua conta para concluir a compra. Leva menos de um minuto.'
+          : 'Comece a aprender a criar jogos.'
+      }
+    >
+      <SignUpForm next={safeNext} />
     </AuthCard>
   );
 }

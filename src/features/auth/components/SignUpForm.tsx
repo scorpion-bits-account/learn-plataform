@@ -10,7 +10,7 @@ import styles from './auth-form.module.css';
 import { PasswordInput } from './PasswordInput';
 import { useFocusOnError } from './useFocusOnError';
 
-export function SignUpForm() {
+export function SignUpForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(signUp, IDLE_STATE);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -23,7 +23,11 @@ export function SignUpForm() {
           <strong>Confira seu email.</strong> {state.message}
         </p>
         <p className={styles.footer}>
-          Não chegou? Veja a caixa de spam ou <TextLink href="/entrar">volte para entrar</TextLink>.
+          Não chegou? Veja a caixa de spam ou{' '}
+          <TextLink href={next ? `/entrar?next=${encodeURIComponent(next)}` : '/entrar'}>
+            volte para entrar
+          </TextLink>
+          .
         </p>
       </div>
     );
@@ -34,6 +38,7 @@ export function SignUpForm() {
 
   return (
     <form ref={formRef} action={action} className={styles.form} noValidate>
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       {state.status === 'error' ? (
         <div ref={alertRef} className={styles.alert} role="alert" tabIndex={-1}>
           {state.message}
@@ -76,7 +81,10 @@ export function SignUpForm() {
         {pending ? 'Criando conta…' : 'Criar conta'}
       </Button>
       <p className={styles.footer}>
-        Já tem conta? <TextLink href="/entrar">Entrar</TextLink>
+        Já tem conta?{' '}
+        <TextLink href={next ? `/entrar?next=${encodeURIComponent(next)}` : '/entrar'}>
+          Entrar
+        </TextLink>
       </p>
     </form>
   );

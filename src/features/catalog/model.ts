@@ -182,17 +182,19 @@ export function descriptionToBlocks(markdown: string | null | undefined): Descri
 }
 
 export type CourseCta =
-  | { kind: 'sign-in'; href: string; label: string }
+  | { kind: 'sign-up'; href: string; label: string }
   | { kind: 'buy'; href: string; label: string }
   | { kind: 'continue'; href: string; label: string };
 
 /** CTA contextual da página do curso. Só navegação: a autorização real é da RLS. */
 export function resolveCta(slug: string, signedIn: boolean, hasAccess: boolean): CourseCta {
+  // Visitante: "Comprar" leva ao cadastro (quem já tem conta tem o link "Entrar" lá),
+  // e depois direto para a compra.
   if (!signedIn) {
     return {
-      kind: 'sign-in',
-      href: `/entrar?next=${encodeURIComponent(`/cursos/${slug}`)}`,
-      label: 'Entrar para comprar',
+      kind: 'sign-up',
+      href: `/cadastro?next=${encodeURIComponent(`/checkout/${slug}`)}`,
+      label: 'Comprar',
     };
   }
   if (hasAccess) {

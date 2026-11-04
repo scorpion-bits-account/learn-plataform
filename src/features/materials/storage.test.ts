@@ -6,8 +6,9 @@ const maybeSingle = vi.fn();
 const eq = vi.fn(() => ({ maybeSingle }));
 const select = vi.fn(() => ({ eq }));
 const from = vi.fn(() => ({ select }));
+const rpc = vi.fn(async () => ({ data: true, error: null }));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({ from })),
+  createClient: vi.fn(async () => ({ from, rpc })),
 }));
 
 const createSignedUrl = vi.fn();
@@ -63,6 +64,26 @@ describe('getMaterialDownloadUrl', () => {
       ok: false,
       error: 'not_a_file',
     });
+    expect(createSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('prévia sem compra: material visível pela RLS, mas o download é recusado', async () => {
+    maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: MATERIAL_ID,
+        type: 'file',
+        storage_path: 'c/l/uuid-a.zip',
+        file_name: 'a.zip',
+        course_id: 'c1',
+      },
+      error: null,
+    });
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    await expect(getMaterialDownloadUrl(MATERIAL_ID)).resolves.toEqual({
+      ok: false,
+      error: 'not_found',
+    });
+    expect(rpc).toHaveBeenCalledWith('has_course_access', { p_course_id: 'c1' });
     expect(createSignedUrl).not.toHaveBeenCalled();
   });
 

@@ -44,8 +44,8 @@ const materialIdSchema = z.uuid();
 
 /**
  * Gera uma signed URL curta para baixar o arquivo de um material, se o usuário
- * da sessão puder ler esse material (aula preview de curso publicado, matrícula
- * ativa ou admin — tudo decidido pela RLS).
+ * da sessão puder ler esse material (RLS) E tiver acesso ao curso (matrícula ativa
+ * ou admin, `has_course_access`). Na prévia o arquivo aparece bloqueado.
  */
 export async function getMaterialDownloadUrl(materialId: string): Promise<MaterialDownloadResult> {
   const parsed = materialIdSchema.safeParse(materialId);
@@ -54,13 +54,21 @@ export async function getMaterialDownloadUrl(materialId: string): Promise<Materi
   const userClient = await createClient();
   const { data: material, error: readError } = await userClient
     .from('lesson_materials')
-    .select('id, type, storage_path, file_name')
+    .select('id, type, storage_path, file_name, course_id')
     .eq('id', parsed.data)
     .maybeSingle();
 
   if (readError) return { ok: false, error: 'unavailable' };
   if (!material) return { ok: false, error: 'not_found' };
   if (material.type !== 'file' || !material.storage_path) return { ok: false, error: 'not_a_file' };
+
+  // Arquivo é só de quem tem acesso ao curso: a prévia mostra o item bloqueado (lockForPreview)
+  // e o download também é recusado aqui, para não depender da interface.
+  const { data: hasAccess, error: accessError } = await userClient.rpc('has_course_access', {
+    p_course_id: material.course_id,
+  });
+  if (accessError) return { ok: false, error: 'unavailable' };
+  if (hasAccess !== true) return { ok: false, error: 'not_found' };
 
   const fileName = material.file_name?.trim() || fallbackFileName(material.storage_path);
 

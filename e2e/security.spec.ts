@@ -57,4 +57,30 @@ test.describe('segurança básica', () => {
       .eq('lesson_id', paid.id);
     expect(data ?? []).toHaveLength(0);
   });
+
+  test('visitante assiste à prévia sem login; aula paga leva a "você ainda não comprou"', async ({
+    page,
+  }) => {
+    const course = await createPublishedCourse({ lessonCount: 2, isPreview: true });
+    const [preview, paid] = course.lessons as [
+      (typeof course.lessons)[number],
+      (typeof course.lessons)[number],
+    ];
+
+    await page.goto(`/previa/${course.slug}/${preview.id}`);
+    await expect(page.getByText(preview.body)).toBeVisible();
+    await expectNoHorizontalOverflow(page, 'prévia sem login');
+
+    await page.goto(`/previa/${course.slug}/${paid.id}`);
+    await expect(page).toHaveURL(new RegExp(`/cursos/${course.slug}/acesso$`));
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Você ainda não comprou este curso' }),
+    ).toBeVisible();
+    expect(await page.content()).not.toContain(paid.body);
+    await expect(page.getByRole('link', { name: 'Criar conta e comprar' })).toHaveAttribute(
+      'href',
+      `/cadastro?next=${encodeURIComponent(`/checkout/${course.slug}`)}`,
+    );
+    await expectNoHorizontalOverflow(page, 'tela de acesso');
+  });
 });
