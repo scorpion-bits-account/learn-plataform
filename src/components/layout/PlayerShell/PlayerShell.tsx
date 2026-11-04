@@ -39,7 +39,7 @@ export interface PlayerShellProps {
  * Recebe tudo por props/slots; não busca dados.
  */
 /*
- * Modo cinema (ementa oculta, vídeo maior) lembrado entre aulas neste navegador.
+ * Ementa oculta (o vídeo cresce até 1600 px) lembrada entre aulas neste navegador.
  * Memória do módulo como fonte; localStorage só para persistir (pode estar bloqueado).
  */
 const CINEMA_KEY = 'sbl-player-cinema';
@@ -128,12 +128,11 @@ export function PlayerShell({
           type="button"
           className={`${styles.toggle} ${styles.toggleDesktop}`}
           onClick={() => setAsideOpen((value) => !value)}
-          aria-pressed={!asideOpen}
+          aria-expanded={asideOpen}
           aria-controls={asideId}
-          title="Oculta a ementa e aumenta o vídeo (melhora a qualidade do YouTube)"
         >
           <SidebarIcon />
-          <span>Modo cinema</span>
+          <span>{asideOpen ? 'Ocultar ementa' : 'Mostrar ementa'}</span>
         </button>
       </header>
 

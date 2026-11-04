@@ -96,7 +96,7 @@
 /*
  * Largura do vídeo: o YouTube limita a qualidade pelo tamanho do player (até ~854 px de
  * largura ele não passa de 480p). 1200 px deixa o player acima disso ao lado da ementa;
- * no modo cinema (ementa oculta) ele cresce até 1600 px.
+ * com a ementa oculta ele cresce até 1600 px.
  */
 .content {
   width: min(1200px, 100%);
